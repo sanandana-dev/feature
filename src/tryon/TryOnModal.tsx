@@ -4,6 +4,8 @@ import { useProfile } from "./useProfile";
 import { ProfileSetup } from "./ProfileSetup";
 import { PaperDoll, ShirtTransform } from "./PaperDoll";
 import { DealStrip } from "./DealStrip";
+import { TryOnTabs, TabMode } from "./TryOnTabs";
+import { CameraOverlay } from "./CameraOverlay";
 import "./tryon.css";
 
 interface TryOnModalProps {
@@ -25,17 +27,24 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
   onClose,
 }) => {
   const [selectedDealId, setSelectedDealId] = useState<string>(activeDealId);
+  const [activeTab, setActiveTab] = useState<TabMode>("twin");
   const [transform, setTransform] = useState<ShirtTransform>(INITIAL_TRANSFORM);
 
   const { profile, setProfile, isFirstTime } = useProfile();
   const modalRef = useRef<HTMLDivElement>(null);
   const prevFocusedRef = useRef<HTMLElement | null>(null);
 
-  // Active deal lookup with safe fallback
   const activeDeal =
     deals.find((d) => d.id === selectedDealId) || deals[0] || null;
+  const isModelMode = activeDeal?.tryOnMode === "model";
 
-  // Preserve shirt position/scale when switching deals
+  // If switched to a model-only deal, return to twin tab safely
+  useEffect(() => {
+    if (isModelMode && activeTab === "mirror") {
+      setActiveTab("twin");
+    }
+  }, [isModelMode, activeTab]);
+
   const handleSelectDeal = (id: string) => {
     setSelectedDealId(id);
   };
@@ -50,7 +59,6 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
     const container = modalRef.current;
     if (!container) return;
 
-    // Focus close button initially
     const closeBtn = container.querySelector<HTMLElement>(".tryon-close-btn");
     if (closeBtn) closeBtn.focus();
 
@@ -69,20 +77,15 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
         ).filter((el) => el.offsetParent !== null);
 
         if (focusableNodes.length === 0) return;
-
         const firstNode = focusableNodes[0];
         const lastNode = focusableNodes[focusableNodes.length - 1];
 
-        if (e.shiftKey) {
-          if (document.activeElement === firstNode) {
-            e.preventDefault();
-            lastNode.focus();
-          }
-        } else {
-          if (document.activeElement === lastNode) {
-            e.preventDefault();
-            firstNode.focus();
-          }
+        if (e.shiftKey && document.activeElement === firstNode) {
+          e.preventDefault();
+          lastNode.focus();
+        } else if (!e.shiftKey && document.activeElement === lastNode) {
+          e.preventDefault();
+          firstNode.focus();
         }
       }
     };
@@ -108,13 +111,12 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
         aria-labelledby="tryon-modal-title"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <header className="tryon-header">
           <div className="tryon-header-text">
             <h1 id="tryon-modal-title" className="tryon-title">
               Style Preview
             </h1>
-            <span className="tryon-badge-pill">Beta</span>
+            <span className="tryon-badge-pill">v2 Live</span>
           </div>
           <button
             type="button"
@@ -126,28 +128,56 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
           </button>
         </header>
 
-        {/* Scrollable Main Area: PaperDoll + Profile Setup */}
-        <div className="tryon-body-scroll">
-          <PaperDoll
-            deal={activeDeal}
-            profile={profile}
-            transform={transform}
-            onTransformChange={setTransform}
-            onResetTransform={handleResetTransform}
-          />
+        {/* Tab Switcher: Body Twin vs Live Mirror */}
+        <TryOnTabs
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          isModelMode={isModelMode}
+        />
 
-          <ProfileSetup
-            profile={profile}
-            onChange={setProfile}
-            isFirstTime={isFirstTime}
-          />
+        <div className="tryon-body-scroll">
+          {activeTab === "twin" ? (
+            <div id="tryon-panel-twin" role="tabpanel" aria-labelledby="tryon-tab-twin">
+              <PaperDoll
+                deal={activeDeal}
+                profile={profile}
+                transform={transform}
+                onTransformChange={setTransform}
+                onResetTransform={handleResetTransform}
+              />
+              <ProfileSetup
+                profile={profile}
+                onChange={setProfile}
+                isFirstTime={isFirstTime}
+              />
+            </div>
+          ) : (
+            <div id="tryon-panel-mirror" role="tabpanel" aria-labelledby="tryon-tab-mirror">
+              <CameraOverlay deal={activeDeal} />
+              <div className="tryon-deal-info" style={{ marginTop: "0.75rem" }}>
+                <h2 className="tryon-deal-title">{activeDeal.title}</h2>
+                <div className="tryon-deal-meta">
+                  <span className="tryon-deal-store">{activeDeal.store}</span>
+                  <span className="tryon-deal-price">₹{activeDeal.price.toLocaleString("en-IN")}</span>
+                </div>
+                <a
+                  href={activeDeal.buyUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="tryon-buy-btn"
+                  aria-label={`Buy ${activeDeal.title} on ${activeDeal.store}`}
+                >
+                  Buy on {activeDeal.store}
+                </a>
+              </div>
+            </div>
+          )}
 
           <p className="tryon-footnote">
             Style preview only. Never indicates tailored fit. Check the store's size chart before buying.
           </p>
         </div>
 
-        {/* Bottom Sticky Strip: Quick Store Switcher */}
         <footer className="tryon-footer-strip">
           <DealStrip
             deals={deals}
