@@ -4,6 +4,10 @@ import { useCamera } from "./useCamera";
 import { useFullscreen } from "./useFullscreen";
 import { DealStrip } from "./DealStrip";
 import { captureMirrorSnapshot } from "./snapshot";
+import { useAutoFit } from "./hooks/useAutoFit";
+import { useShirtGestures } from "./hooks/useShirtGestures";
+import { AutoFitSubBar } from "./AutoFitControls";
+import { FabricType, RealismLevel } from "./pose/types";
 
 interface CameraOverlayProps {
   deal: Deal;
@@ -31,18 +35,42 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
   const [controlsVisible, setControlsVisible] = useState<boolean>(true);
   const [vpDim, setVpDim] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
+  const [autoFitEnabled, setAutoFitEnabled] = useState<boolean>(false);
+  const [fabric, setFabric] = useState<FabricType>("cotton");
+  const [realism, setRealism] = useState<RealismLevel>("high");
+
   const shirtImgRef = useRef<HTMLImageElement>(null);
+  const autoFitCanvasRef = useRef<HTMLCanvasElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchStart = useRef<{ dist: number; scale: number } | null>(null);
-  const lastSingle = useRef<{ x: number; y: number } | null>(null);
   const rafId = useRef<number | null>(null);
   const hideTimer = useRef<number | null>(null);
   const isHoveringControls = useRef(false);
 
   const isTransparent = deal.imageUrl.toLowerCase().includes(".svg");
   const effectiveBlend = isTransparent ? blendMode : "realistic";
+  const isFlat = deal.tryOnMode === "flat";
+  const effectiveAutoFit = autoFitEnabled && isFlat;
+
+  const { state: autoFitState, isCalibrated, fps, latencyMs, qualityLevel } = useAutoFit({
+    enabled: effectiveAutoFit && state === "active",
+    videoRef,
+    canvasRef: autoFitCanvasRef,
+    shirtImgRef,
+    fit: "regular",
+    fabric,
+    realism,
+    manualOffset: posRef.current,
+    manualScale: scale,
+    manualRotateDeg: rotate,
+  });
+
+  useEffect(() => {
+    if (autoFitState === "error" && autoFitEnabled) {
+      setAutoFitEnabled(false);
+      setSnapshotMsg("Auto-Fit body tracking failed or model file is missing. Reverted to manual mode.");
+    }
+  }, [autoFitState, autoFitEnabled]);
 
   const isLandscape = vpDim.w >= vpDim.h;
   const baseWidth = Math.min(900, Math.max(280, (vpDim.w || (isLandscape ? 800 : 400)) * (isLandscape ? 0.55 : 0.85)));
@@ -79,7 +107,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
     setControlsVisible(true);
     if ((isFullscreen || isPseudoFullscreen) && !isHoveringControls.current) {
       hideTimer.current = window.setTimeout(() => {
-        if (pointers.current.size === 0 && !isHoveringControls.current) setControlsVisible(false);
+        if (!isHoveringControls.current) setControlsVisible(false);
       }, 3000);
     }
   }, [isFullscreen, isPseudoFullscreen]);
@@ -89,26 +117,14 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
     return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
   }, [isFullscreen, resetHideTimer]);
 
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    resetHideTimer();
-    if (state !== "active") return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 1) lastSingle.current = { x: e.clientX, y: e.clientY };
-    if (pointers.current.size === 2) {
-      const [p1, p2] = Array.from(pointers.current.values());
-      pinchStart.current = { dist: Math.hypot(p1.x - p2.x, p1.y - p2.y) || 1, scale };
-    }
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    resetHideTimer();
-    if (state !== "active" || !pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    if (pointers.current.size === 1 && lastSingle.current) {
-      const dx = e.clientX - lastSingle.current.x;
-      const dy = e.clientY - lastSingle.current.y;
-      lastSingle.current = { x: e.clientX, y: e.clientY };
+  const { onPointerDown, onPointerMove, onPointerUp } = useShirtGestures({
+    isActive: state === "active",
+    scale,
+    rotate,
+    setScale,
+    onDragStart: resetHideTimer,
+    onDragMove: (dx, dy) => {
+      resetHideTimer();
       posRef.current.x += dx;
       posRef.current.y += dy;
       setHasDragged(true);
@@ -118,21 +134,17 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
           rafId.current = null;
         });
       }
-    } else if (pointers.current.size === 2 && pinchStart.current) {
-      const [p1, p2] = Array.from(pointers.current.values());
-      const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      const next = Math.min(2.0, Math.max(0.5, pinchStart.current.scale * (dist / pinchStart.current.dist)));
-      setScale(Number(next.toFixed(2)));
-    }
-  };
+    },
+    onGestureEnd: resetHideTimer,
+  });
 
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    pointers.current.delete(e.pointerId);
-    try { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
-    lastSingle.current = pointers.current.size === 1 ? (pointers.current.values().next().value ?? null) : null;
-    if (pointers.current.size < 2) pinchStart.current = null;
-    resetHideTimer();
-  };
+  const autoFitStatusText = (() => {
+    if (!effectiveAutoFit) return "";
+    if (autoFitState === "loading") return "Loading body tracking...";
+    if (autoFitState === "lost") return "No body found";
+    if (autoFitState === "tracking") return isCalibrated ? "Tracking on" : "Stand back so your shoulders are in view";
+    return "";
+  })();
 
   const isFull = isFullscreen || isPseudoFullscreen;
 
@@ -148,12 +160,17 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
             <button type="button" className={`tryon-blend-btn ${effectiveBlend === "realistic" ? "active" : ""}`} onClick={() => setBlendMode("realistic")} aria-label="Realistic blend mode">Realistic</button>
             <button type="button" className={`tryon-blend-btn ${effectiveBlend === "solid" ? "active" : ""}`} onClick={() => isTransparent && setBlendMode("solid")} disabled={!isTransparent} title={!isTransparent ? "Needs a transparent image" : "Solid blend mode"} aria-label="Solid blend mode">Solid</button>
           </div>
+          {isFlat && (
+            <button type="button" className={`tryon-autofit-switch ${effectiveAutoFit ? "active" : ""}`} onClick={() => setAutoFitEnabled((v) => !v)} aria-label="Toggle Auto-Fit live body tracking" aria-pressed={effectiveAutoFit}>
+              Auto-Fit (beta)
+            </button>
+          )}
         </div>
         <div className="tryon-fs-actions">
           <button type="button" className={`tryon-touch-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-label="Toggle shoulder guide" title="Toggle shoulder guide" aria-pressed={showGuide}>👤</button>
           <button type="button" className="tryon-touch-btn" onClick={() => { posRef.current = { x: 0, y: 0 }; setRotate(0); setHasDragged(false); applyTransform(0, 0, scale, 0); }} aria-label="Center shirt" title="Center shirt">🎯</button>
           <button type="button" className="tryon-touch-btn" onClick={() => { posRef.current = { x: 0, y: 0 }; setRotate(0); setScale(1.0); setHasDragged(false); applyTransform(0, 0, 1.0, 0); }} aria-label="Reset position and size" title="Reset position and size">↺</button>
-          <button type="button" className="tryon-touch-btn" onClick={() => { setSnapshotMsg(""); if (videoRef.current && viewportRef.current && shirtImgRef.current) captureMirrorSnapshot(videoRef.current, viewportRef.current, shirtImgRef.current, rotate, deal.id, effectiveBlend, () => setSnapshotMsg("Snapshot isn't available for this image. Use your screenshot instead.")); }} aria-label="Take snapshot" title="Take snapshot">📷</button>
+          <button type="button" className="tryon-touch-btn" onClick={() => { setSnapshotMsg(""); const cap = effectiveAutoFit && autoFitCanvasRef.current ? autoFitCanvasRef.current : shirtImgRef.current; if (videoRef.current && viewportRef.current && cap) captureMirrorSnapshot(videoRef.current, viewportRef.current, cap, rotate, deal.id, effectiveBlend, effectiveAutoFit, () => setSnapshotMsg("Snapshot isn't available for this image. Use your screenshot instead.")); }} aria-label="Take snapshot" title="Take snapshot">📷</button>
           <button type="button" className="tryon-touch-btn" onClick={toggleFullscreen} aria-label={isFull ? "Exit full screen" : "Enter full screen"} title={isFull ? "Exit full screen" : "Enter full screen"}>{isFull ? "⤡" : "⛶"}</button>
           <button type="button" className="tryon-touch-btn" onClick={() => { if (isFullscreen) exitFullscreen(); stopCamera(); onClose(); }} aria-label="Close" title="Close">✕</button>
         </div>
@@ -163,10 +180,26 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
         <span className="tryon-deal-compact-title">{deal.title}</span>
         <span className="tryon-deal-compact-price">₹{deal.price.toLocaleString("en-IN")}</span>
         <a href={deal.buyUrl} target="_blank" rel="noopener noreferrer" className="tryon-buy-btn tryon-buy-btn-compact" aria-label={`Buy on ${deal.store}`}>Buy on {deal.store}</a>
+        {effectiveAutoFit && autoFitStatusText && (
+          <span className={`tryon-autofit-badge ${isCalibrated ? "calibrated" : ""}`}>
+            {autoFitStatusText} {isCalibrated && "✓"}
+          </span>
+        )}
       </div>
+
+      {effectiveAutoFit && (
+        <AutoFitSubBar visible={controlsVisible} isFull={isFull} fabric={fabric} realism={realism} onFabricChange={setFabric} onRealismChange={setRealism} />
+      )}
+
+      {import.meta.env.DEV && effectiveAutoFit && autoFitState === "tracking" && (
+        <div className="tryon-dev-fps" aria-hidden="true">{fps} FPS | {latencyMs}ms | {qualityLevel}</div>
+      )}
+
+      <div aria-live="polite" className="tryon-sr-only">{autoFitStatusText}</div>
 
       <div ref={viewportRef} className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
         <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: state === "active" ? "visible" : "hidden" }} />
+        <canvas ref={autoFitCanvasRef} className={`tryon-mirror-autofit-canvas ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ display: effectiveAutoFit && autoFitState !== "off" ? "block" : "none" }} />
         {state !== "active" && (
           <div className="tryon-camera-prompt">
             {state === "requesting" && <p>Requesting camera access...</p>}
@@ -180,7 +213,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
             )}
           </div>
         )}
-        {showGuide && state === "active" && (
+        {showGuide && state === "active" && !effectiveAutoFit && (
           <>
             <svg className="tryon-shoulder-guide" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
               <ellipse cx="500" cy="280" rx="55" ry="70" vectorEffect="non-scaling-stroke" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeDasharray="8 6" />
@@ -190,7 +223,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
           </>
         )}
         {state === "active" && (
-          <img ref={shirtImgRef} src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className={`tryon-mirror-shirt-img ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ width: `${baseWidth}px` }} draggable={false} />
+          <img ref={shirtImgRef} src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className={`tryon-mirror-shirt-img ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ width: `${baseWidth}px`, display: effectiveAutoFit && autoFitState === "tracking" ? "none" : "block" }} draggable={false} />
         )}
       </div>
 

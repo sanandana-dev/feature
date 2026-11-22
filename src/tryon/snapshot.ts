@@ -1,15 +1,16 @@
 /**
- * Zero-AI client-side snapshot helper for Live Mirror.
- * Composites the mirrored video frame and positioned/rotated shirt onto a 2D canvas
- * and triggers a client-side PNG download.
+ * Client-side snapshot helper for Live Mirror.
+ * Composites the mirrored video frame and positioned garment (either Auto-Fit canvas
+ * or manual shirt image) onto a 2D canvas and triggers a client-side PNG download.
  */
 export function captureMirrorSnapshot(
   video: HTMLVideoElement,
   viewport: HTMLElement,
-  shirt: HTMLImageElement,
+  shirt: HTMLImageElement | HTMLCanvasElement,
   rotate: number,
   dealId: string,
   blendMode: "realistic" | "solid",
+  isCanvasOverlay: boolean,
   onUnavailable: () => void
 ): void {
   if (video.readyState < 2) return;
@@ -26,20 +27,27 @@ export function captureMirrorSnapshot(
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     ctx.restore();
 
-    const vpRect = viewport.getBoundingClientRect();
-    const shirtRect = shirt.getBoundingClientRect();
-    const sx = canvas.width / vpRect.width;
-    const sy = canvas.height / vpRect.height;
-    const cx = (shirtRect.left + shirtRect.width / 2 - vpRect.left) * sx;
-    const cy = (shirtRect.top + shirtRect.height / 2 - vpRect.top) * sy;
-
     ctx.save();
-    ctx.translate(cx, cy);
-    ctx.rotate((rotate * Math.PI) / 180);
     ctx.globalCompositeOperation = blendMode === "realistic" ? "multiply" : "source-over";
-    const dw = shirtRect.width * sx;
-    const dh = shirtRect.height * sy;
-    ctx.drawImage(shirt, -dw / 2, -dh / 2, dw, dh);
+
+    if (isCanvasOverlay && shirt instanceof HTMLCanvasElement) {
+      // Auto-Fit canvas already covers the full viewport dimensions
+      ctx.drawImage(shirt, 0, 0, canvas.width, canvas.height);
+    } else if (shirt instanceof HTMLImageElement) {
+      const vpRect = viewport.getBoundingClientRect();
+      const shirtRect = shirt.getBoundingClientRect();
+      const sx = canvas.width / vpRect.width;
+      const sy = canvas.height / vpRect.height;
+      const cx = (shirtRect.left + shirtRect.width / 2 - vpRect.left) * sx;
+      const cy = (shirtRect.top + shirtRect.height / 2 - vpRect.top) * sy;
+
+      ctx.translate(cx, cy);
+      ctx.rotate((rotate * Math.PI) / 180);
+      const dw = shirtRect.width * sx;
+      const dh = shirtRect.height * sy;
+      ctx.drawImage(shirt, -dw / 2, -dh / 2, dw, dh);
+    }
+
     ctx.restore();
 
     const a = document.createElement("a");

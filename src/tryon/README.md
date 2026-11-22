@@ -1,52 +1,57 @@
-# DealFinder "Style Preview" (Try On v3 - Size Match)
+# DealFinder "Style Preview" (Try On v4 - Auto-Fit Live Mirror)
 
-A lightweight, zero-AI, accessible "Style Preview" and "Size Match" component for clothes shopping apps.
+An accessible "Style Preview" and "Size Match" component for apparel comparison apps.
 
 ## Key Features
-- **100% Zero AI & Zero WebGL**: No ML models, no pose tracking, no server calls.
-- **Style Preview (v1 & v2)**:
-  - **Body Twin**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
-  - **Live Mirror**: Mirrored local webcam feed with manual alignment.
+- **Style Preview Modes**:
+  - **Body Twin (Zero-AI)**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
+  - **Manual Mirror (Zero-AI Fallback)**: Mirrored local webcam feed with manual alignment, scale, rotation, and snapshot capture.
+  - **Auto-Fit (beta)**: On-device body tracking using self-hosted MediaPipe PoseLandmarker (Lite). Warped 2D textured mesh, Verlet cloth dynamics, and procedural depth shading. 100% on-device; zero cloud calls.
 - **Size Match (v3)**:
-  - Deterministic recommendation engine based on store size charts.
-  - Pick smallest size where `chestCm >= user chest + 4` (comfort ease).
+  - Deterministic size chart matching (`chestCm >= user chest + 4` ease).
   - Flags between-sizes and narrow shoulders (> 2 cm narrower than user).
   - Explicit honest labeling: *"Size suggestion based on the store's chart. Check the store's size guide before buying."*
-  - Requires user chest input; never guesses.
 
 ---
 
-## Live Mirror Mode
-
-> [!NOTE]
-> Camera access requires a secure context (**HTTPS** or `localhost`). Browsers automatically block `navigator.mediaDevices.getUserMedia` on plain HTTP.
-
-- **Explicit Opt-in**: Camera starts only after the user taps "Turn on camera".
-- **Strict Leak Prevention**: Media tracks stop immediately on tab switch, modal close, hook unmount, or when the browser tab goes into background (`visibilitychange: hidden`).
-- **Device Switching**: If multiple cameras are present, a "Switch camera" button appears automatically.
-- **Honest Labeling**: Prominently labeled: *"Line up the shirt with your shoulders. This is a style preview, not a fit check."*
-
----
-
-## Component Structure
+## Component Architecture
 
 ```
 src/tryon/
   types.ts             # Deal, Profile, SizeChartEntry, FitType definitions
-  useProfile.ts        # Resilient localStorage hook with chest/shoulder validation
+  useProfile.ts        # LocalStorage persistence hook for measurements
   recommendSize.ts     # Pure function size recommendation engine
-  recommendSize.test.ts# Vitest unit tests for recommendSize
+  recommendSize.test.ts# Vitest tests for recommendSize
   SizeMatch.tsx        # Size match suggestion card & size chart viewer
   useCamera.ts         # Camera state machine, error handling & stream lifecycle
-  useCamera.test.ts    # Unit tests for camera state machine (Vitest)
+  useCamera.test.ts    # Unit tests for camera state machine
+  useFullscreen.ts     # Native & pseudo fullscreen hook
+  useFullscreen.test.ts# Fullscreen unit tests
+  snapshot.ts          # Client-side canvas snapshot compositor
   TryOnTabs.tsx        # Accessible WAI-ARIA tab navigation (Twin / Mirror)
-  ProfileSetup.tsx     # Height slider, segmented build, skin tones, exact measurements
+  ProfileSetup.tsx     # Height slider, segmented build, skin tones, measurements
   PaperDoll.tsx        # Dynamic SVG silhouette + shirt overlay + drag/pinch
-  CameraOverlay.tsx    # Mirrored video feed + un-mirrored shirt overlay + snapshot
-  DealStrip.tsx        # Smooth scroll-snap horizontal strip of alternative deals
+  CameraOverlay.tsx    # Live mirror view orchestrating manual & Auto-Fit modes
+  AutoFitControls.tsx  # Fabric & Realism selectors for Auto-Fit mode
+  DealStrip.tsx        # Scroll-snap horizontal strip of alternative deals
   TryOnModal.tsx       # Focus-trapped dialog orchestrating all components
-  tryon.css            # Mobile-first styles (360px+), CSS transforms & animations
-  README.md            # Usage notes and integration guide
+  tryon.css            # Responsive styles, blend modes, animations
+  hooks/
+    useAutoFit.ts      # Auto-fit lifecycle, detection loop, and adaptive quality
+    loadLandmarker.ts  # Dynamic lazy loader for self-hosted MediaPipe wasm/model
+    useShirtGestures.ts# Touch/pointer pinch & drag gesture handler
+  pose/
+    types.ts           # Pose anchors, landmarks, and viewport types
+    coordinateMapping.ts# Exact object-fit: cover and mirror coordinate mapping
+    oneEuroFilter.ts   # Adaptive low-latency jitter filter (1€ Filter)
+    poseToAnchors.ts   # Extracts body anchors from 33 pose landmarks
+    trackingState.ts   # Smooth fading state manager for lost/regained tracking
+    meshGenerator.ts   # Warped garment mesh calculation pinned to anchors
+    pose.test.ts       # Vitest tests for pose, filter, mapping, and mesh
+  render/
+    clothSimulation.ts # Verlet spring physics for fabric sway & lag
+    shading.ts         # Procedural depth gradient, folds & contact shadow
+    meshRenderer.ts    # Canvas 2D textured triangle mesh rasterizer
 ```
 
 ---
@@ -57,7 +62,7 @@ src/tryon/
 # Install dependencies
 npm install
 
-# Run all unit tests (13 tests: useCamera + recommendSize)
+# Run all unit tests (27 tests)
 npm test
 
 # Run Vite dev server
