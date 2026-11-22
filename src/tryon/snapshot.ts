@@ -9,6 +9,7 @@ export function captureMirrorSnapshot(
   shirt: HTMLImageElement,
   rotate: number,
   dealId: string,
+  blendMode: "realistic" | "solid",
   onUnavailable: () => void
 ): void {
   if (video.readyState < 2) return;
@@ -35,6 +36,7 @@ export function captureMirrorSnapshot(
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate((rotate * Math.PI) / 180);
+    ctx.globalCompositeOperation = blendMode === "realistic" ? "multiply" : "source-over";
     const dw = shirtRect.width * sx;
     const dh = shirtRect.height * sy;
     ctx.drawImage(shirt, -dw / 2, -dh / 2, dw, dh);

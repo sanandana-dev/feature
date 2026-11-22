@@ -1,34 +1,71 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
-  <!-- Plain White Background -->
-  <rect width="400" height="400" fill="#ffffff" />
-  
-  <!-- T-Shirt Body and Sleeves (Navy / Indigo) -->
-  <path d="M 140 70 
-           Q 170 82 200 82 
-           Q 230 82 260 70 
-           L 330 115 
-           L 300 170 
-           L 260 148 
-           L 260 340 
-           L 140 340 
-           L 140 148 
-           L 100 170 
-           L 70 115 Z" 
-        fill="#1e3a8a" 
-        stroke="#172554" 
-        stroke-width="3" 
-        stroke-linejoin="round" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 640" width="600" height="640">
+  <!-- T-Shirt Body & Sleeves (Realistic Navy Torso ~62% width) -->
+  <path
+    d="M 220 32
+       Q 258 46 300 46
+       Q 342 46 380 32
+       L 485 68
+       L 582 136
+       L 546 238
+       L 485 208
+       Q 482 400 484 590
+       Q 300 608 116 590
+       Q 118 400 115 208
+       L 54 238
+       L 18 136
+       L 115 68
+       Z"
+    fill="#1e3a8a"
+    stroke="#172554"
+    stroke-width="2"
+    stroke-linejoin="round"
+  />
 
-  <!-- Inner Collar Ribbing -->
-  <path d="M 140 70 Q 200 110 260 70 Q 200 85 140 70 Z" fill="#0f172a" />
-  
-  <!-- Collar Line -->
-  <path d="M 140 70 Q 200 110 260 70" fill="none" stroke="#3b82f6" stroke-width="2" />
-  
-  <!-- Sleeve Stitching Detail -->
-  <line x1="285" y1="135" x2="268" y2="162" stroke="#3b82f6" stroke-width="2" stroke-dasharray="3 3" />
-  <line x1="115" y1="135" x2="132" y2="162" stroke="#3b82f6" stroke-width="2" stroke-dasharray="3 3" />
-  
-  <!-- Bottom Hem Stitching Detail -->
-  <line x1="145" y1="330" x2="255" y2="330" stroke="#3b82f6" stroke-width="2" stroke-dasharray="4 3" />
+  <!-- Subtle Shading & Fold Accents -->
+  <!-- Left armpit fold -->
+  <path d="M 115 208 Q 140 240 160 252" fill="none" stroke="rgba(15, 23, 42, 0.35)" stroke-width="2.5" stroke-linecap="round" />
+  <path d="M 125 215 Q 145 235 155 270" fill="none" stroke="rgba(15, 23, 42, 0.2)" stroke-width="2" stroke-linecap="round" />
+  <!-- Right armpit fold -->
+  <path d="M 485 208 Q 460 240 440 252" fill="none" stroke="rgba(15, 23, 42, 0.35)" stroke-width="2.5" stroke-linecap="round" />
+  <path d="M 475 215 Q 455 235 445 270" fill="none" stroke="rgba(15, 23, 42, 0.2)" stroke-width="2" stroke-linecap="round" />
+  <!-- Chest subtle fold line -->
+  <path d="M 240 180 Q 300 210 360 180" fill="none" stroke="rgba(255, 255, 255, 0.08)" stroke-width="2" stroke-linecap="round" />
+  <path d="M 230 350 Q 300 375 370 350" fill="none" stroke="rgba(15, 23, 42, 0.15)" stroke-width="2" stroke-linecap="round" />
+  <!-- Hem fold line -->
+  <path d="M 125 575 Q 300 593 475 575" fill="none" stroke="rgba(255, 255, 255, 0.12)" stroke-width="2" stroke-linecap="round" />
+
+  <!-- Inside Back Collar Shadow -->
+  <path
+    d="M 220 32
+       Q 300 65 380 32
+       Q 300 46 220 32 Z"
+    fill="#0f172a"
+  />
+
+  <!-- Slightly Lighter Crewneck Ribbed Collar Band -->
+  <path
+    d="M 220 32
+       Q 300 95 380 32
+       Q 300 80 220 32 Z"
+    fill="#2563eb"
+    stroke="#1d4ed8"
+    stroke-width="1.5"
+  />
+
+  <!-- Inner Neckline Opening Cutout -->
+  <path
+    d="M 228 34
+       Q 300 84 372 34
+       Q 300 48 228 34 Z"
+    fill="none"
+    stroke="#1e40af"
+    stroke-width="1.5"
+  />
+
+  <!-- Sleeve Edge Stitch Details -->
+  <line x1="570" y1="150" x2="538" y2="232" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6" />
+  <line x1="30" y1="150" x2="62" y2="232" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.6" />
+
+  <!-- Bottom Hem Stitch Detail -->
+  <path d="M 122 578 Q 300 596 478 578" fill="none" stroke="#3b82f6" stroke-width="1.5" stroke-dasharray="5 3" opacity="0.6" />
 </svg>
