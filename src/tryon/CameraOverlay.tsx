@@ -1,37 +1,42 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Deal } from "./types";
 import { useCamera } from "./useCamera";
-
-const MIRROR_STORAGE_KEY = "dealfinder.tryon.mirror";
-
-function getSavedScale(): number {
-  try {
-    const raw = localStorage.getItem(MIRROR_STORAGE_KEY);
-    if (raw) {
-      const val = parseFloat(raw);
-      if (Number.isFinite(val) && val >= 0.5 && val <= 2.0) return val;
-    }
-  } catch {}
-  return 1.0;
-}
+import { useFullscreen } from "./useFullscreen";
+import { DealStrip } from "./DealStrip";
+import { captureMirrorSnapshot } from "./snapshot";
 
 interface CameraOverlayProps {
   deal: Deal;
+  deals: Deal[];
+  onSelectDeal: (id: string) => void;
+  onClose: () => void;
 }
 
-export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
-  const { state, errorMessage, hasMultipleCameras, videoRef, startCamera, switchCamera } = useCamera();
-  const [scale, setScale] = useState<number>(getSavedScale);
+export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSelectDeal, onClose }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const { state, errorMessage, videoRef, startCamera, stopCamera } = useCamera();
+  const { isFullscreen, isPseudoFullscreen, toggleFullscreen, exitFullscreen } = useFullscreen(containerRef);
+
+  const [scale, setScale] = useState<number>(() => {
+    try {
+      const val = parseFloat(localStorage.getItem("dealfinder.tryon.mirror") || "1");
+      return Number.isFinite(val) && val >= 0.5 && val <= 2.0 ? val : 1.0;
+    } catch { return 1.0; }
+  });
   const [rotate, setRotate] = useState<number>(0);
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [snapshotMsg, setSnapshotMsg] = useState<string>("");
+  const [controlsVisible, setControlsVisible] = useState<boolean>(true);
 
   const shirtImgRef = useRef<HTMLImageElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const posRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStart = useRef<{ dist: number; scale: number } | null>(null);
   const lastSingle = useRef<{ x: number; y: number } | null>(null);
   const rafId = useRef<number | null>(null);
+  const hideTimer = useRef<number | null>(null);
+  const isHoveringControls = useRef(false);
 
   const applyTransform = useCallback((x: number, y: number, s: number, r: number) => {
     if (shirtImgRef.current) {
@@ -41,12 +46,26 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
 
   useEffect(() => {
     applyTransform(posRef.current.x, posRef.current.y, scale, rotate);
-    try {
-      localStorage.setItem(MIRROR_STORAGE_KEY, scale.toFixed(2));
-    } catch {}
+    try { localStorage.setItem("dealfinder.tryon.mirror", scale.toFixed(2)); } catch {}
   }, [scale, rotate, applyTransform]);
 
+  const resetHideTimer = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    setControlsVisible(true);
+    if (isFullscreen && !isHoveringControls.current) {
+      hideTimer.current = window.setTimeout(() => {
+        if (pointers.current.size === 0 && !isHoveringControls.current) setControlsVisible(false);
+      }, 3000);
+    }
+  }, [isFullscreen]);
+
+  useEffect(() => {
+    resetHideTimer();
+    return () => { if (hideTimer.current) clearTimeout(hideTimer.current); };
+  }, [isFullscreen, resetHideTimer]);
+
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    resetHideTimer();
     if (state !== "active") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -58,9 +77,9 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    resetHideTimer();
     if (state !== "active" || !pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-
     if (pointers.current.size === 1 && lastSingle.current) {
       const dx = e.clientX - lastSingle.current.x;
       const dy = e.clientY - lastSingle.current.y;
@@ -83,83 +102,62 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
 
   const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
     pointers.current.delete(e.pointerId);
-    try {
-      if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
-    } catch {}
+    try { if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId); } catch {}
     lastSingle.current = pointers.current.size === 1 ? (pointers.current.values().next().value ?? null) : null;
     if (pointers.current.size < 2) pinchStart.current = null;
+    resetHideTimer();
   };
 
-  const centerShirt = () => {
-    posRef.current = { x: 0, y: 0 };
-    setRotate(0);
-    applyTransform(0, 0, scale, 0);
-  };
-
-  const resetAll = () => {
-    posRef.current = { x: 0, y: 0 };
-    setRotate(0);
-    setScale(1.0);
-    applyTransform(0, 0, 1.0, 0);
+  const handleClose = () => {
+    if (isFullscreen) exitFullscreen();
+    stopCamera();
+    onClose();
   };
 
   const takeSnapshot = () => {
     setSnapshotMsg("");
     const video = videoRef.current;
-    if (!video || video.readyState < 2) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth || 640;
-    canvas.height = video.videoHeight || 480;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    try {
-      ctx.save();
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      ctx.restore();
-      const img = shirtImgRef.current;
-      if (img && img.complete) {
-        ctx.save();
-        const ratio = canvas.width / 300;
-        ctx.translate(canvas.width / 2 + posRef.current.x * ratio, canvas.height * 0.35 + posRef.current.y * ratio);
-        ctx.rotate((rotate * Math.PI) / 180);
-        ctx.scale(scale * ratio, scale * ratio);
-        const w = 160;
-        const h = (img.naturalHeight / (img.naturalWidth || 1)) * w;
-        ctx.drawImage(img, -w / 2, -h / 2, w, h);
-        ctx.restore();
-      }
-      const a = document.createElement("a");
-      a.href = canvas.toDataURL("image/png");
-      a.download = `style-preview-${deal.id}.png`;
-      a.click();
-    } catch {
-      setSnapshotMsg("Snapshot isn't available for this image. Use your phone's screenshot instead.");
-    }
+    const vp = viewportRef.current;
+    const shirt = shirtImgRef.current;
+    if (!video || !vp || !shirt) return;
+    captureMirrorSnapshot(video, vp, shirt, rotate, deal.id, () => {
+      setSnapshotMsg("Snapshot isn't available for this image. Use your screenshot instead.");
+    });
   };
 
+  const isFull = isFullscreen || isPseudoFullscreen;
+
   return (
-    <div className="tryon-camera-overlay">
-      {/* Compact one-row toolbar under 56px */}
-      <div className="tryon-compact-toolbar">
-        <div className="tryon-tool-compact-group">
-          <label htmlFor="tryon-m-scale" className="tryon-tool-label">Size</label>
-          <input id="tryon-m-scale" type="range" min={0.5} max={1.8} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Scale shirt size" />
+    <div
+      ref={containerRef}
+      className={`tryon-camera-overlay ${isFull ? "tryon-fullscreen-active" : ""}`}
+      onPointerMove={resetHideTimer}
+      onClick={resetHideTimer}
+    >
+      {/* Top Controls Overlay */}
+      <div
+        className={`tryon-fs-top-bar tryon-fs-overlay ${!controlsVisible && isFull ? "hidden" : ""}`}
+        onPointerEnter={() => { isHoveringControls.current = true; }}
+        onPointerLeave={() => { isHoveringControls.current = false; resetHideTimer(); }}
+      >
+        <div className="tryon-translucent-pill">
+          <label htmlFor="tryon-fs-scale" className="tryon-fs-label">Size</label>
+          <input id="tryon-fs-scale" type="range" min={0.5} max={1.8} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Scale shirt size" />
+          <label htmlFor="tryon-fs-rotate" className="tryon-fs-label">Rotate</label>
+          <input id="tryon-fs-rotate" type="range" min={-15} max={15} step={1} value={rotate} onChange={(e) => setRotate(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Rotate shirt angle" />
         </div>
-        <div className="tryon-tool-compact-group">
-          <label htmlFor="tryon-m-rotate" className="tryon-tool-label">Rotate</label>
-          <input id="tryon-m-rotate" type="range" min={-15} max={15} step={1} value={rotate} onChange={(e) => setRotate(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Rotate shirt angle" />
-        </div>
-        <div className="tryon-tool-icon-group">
-          <button type="button" className={`tryon-icon-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-label="Toggle shoulder guide" title="Toggle shoulder guide" aria-pressed={showGuide}>👤</button>
-          <button type="button" className="tryon-icon-btn" onClick={centerShirt} aria-label="Center shirt" title="Center shirt">🎯</button>
-          <button type="button" className="tryon-icon-btn" onClick={resetAll} aria-label="Reset position and size" title="Reset position and size">↺</button>
+        <div className="tryon-fs-actions">
+          <button type="button" className={`tryon-touch-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-label="Toggle shoulder guide" title="Toggle shoulder guide" aria-pressed={showGuide}>👤</button>
+          <button type="button" className="tryon-touch-btn" onClick={() => { posRef.current = { x: 0, y: 0 }; setRotate(0); applyTransform(0, 0, scale, 0); }} aria-label="Center shirt" title="Center shirt">🎯</button>
+          <button type="button" className="tryon-touch-btn" onClick={() => { posRef.current = { x: 0, y: 0 }; setRotate(0); setScale(1.0); applyTransform(0, 0, 1.0, 0); }} aria-label="Reset position and size" title="Reset position and size">↺</button>
+          <button type="button" className="tryon-touch-btn" onClick={takeSnapshot} aria-label="Take snapshot" title="Take snapshot">📷</button>
+          <button type="button" className="tryon-touch-btn" onClick={toggleFullscreen} aria-label={isFull ? "Exit full screen" : "Enter full screen"} title={isFull ? "Exit full screen" : "Enter full screen"}>{isFull ? "⤡" : "⛶"}</button>
+          <button type="button" className="tryon-touch-btn" onClick={handleClose} aria-label="Close" title="Close">✕</button>
         </div>
       </div>
 
-      {/* Priority Viewport filling available modal height at 3:4 */}
-      <div className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
+      {/* Main Viewport */}
+      <div ref={viewportRef} className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
         <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: state === "active" ? "visible" : "hidden" }} />
         {state !== "active" && (
           <div className="tryon-camera-prompt">
@@ -170,9 +168,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
                 <p className="tryon-camera-privacy">Your camera stays on your device. Nothing is recorded or uploaded.</p>
                 {errorMessage && <p className="tryon-camera-err-text">{errorMessage}</p>}
                 {state !== "unsupported" && (
-                  <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">
-                    {state === "error" || state === "denied" ? "Retry" : "Turn on camera"}
-                  </button>
+                  <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">{state === "error" || state === "denied" ? "Retry" : "Turn on camera"}</button>
                 )}
               </>
             )}
@@ -180,7 +176,6 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
         )}
         {showGuide && state === "active" && (
           <svg className="tryon-shoulder-guide" viewBox="0 0 300 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-            {/* Head circle sitting near top 15% - 40% (y: 60 to 160) */}
             <ellipse cx="150" cy="110" rx="38" ry="50" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" />
             <path d="M 30 250 Q 80 170 110 160 Q 150 163 190 160 Q 220 170 270 250" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" />
           </svg>
@@ -192,14 +187,21 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
 
       {snapshotMsg && <p className="tryon-snapshot-alert" role="status">{snapshotMsg}</p>}
 
-      <div className="tryon-mirror-bottom-bar">
-        {state === "active" && (
-          <div className="tryon-mirror-actions">
-            <button type="button" className="tryon-action-btn" onClick={takeSnapshot}>Take snapshot</button>
-            {hasMultipleCameras && <button type="button" className="tryon-action-btn" onClick={switchCamera}>Switch camera</button>}
-          </div>
-        )}
-        <p className="tryon-honest-label">Colors can look slightly different on camera. This is a style preview, not a fit check.</p>
+      {/* Bottom Overlaid / Stacked Deal Controls */}
+      <div
+        className={`tryon-fs-bottom-bar tryon-fs-overlay ${!controlsVisible && isFull ? "hidden" : ""}`}
+        onPointerEnter={() => { isHoveringControls.current = true; }}
+        onPointerLeave={() => { isHoveringControls.current = false; resetHideTimer(); }}
+      >
+        <div className="tryon-deal-compact-row">
+          <span className="tryon-deal-compact-title">{deal.title}</span>
+          <span className="tryon-deal-compact-price">₹{deal.price.toLocaleString("en-IN")}</span>
+          <a href={deal.buyUrl} target="_blank" rel="noopener noreferrer" className="tryon-buy-btn tryon-buy-btn-compact" aria-label={`Buy on ${deal.store}`}>Buy on {deal.store}</a>
+        </div>
+        <div className="tryon-fs-strip-wrap">
+          <DealStrip deals={deals} activeDealId={deal.id} onSelect={onSelectDeal} />
+        </div>
+        <p className="tryon-fs-footnote">Style preview only, not a fit check</p>
       </div>
     </div>
   );

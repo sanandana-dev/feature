@@ -96,7 +96,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
     <div className="tryon-backdrop" onClick={onClose}>
       <div
         ref={modalRef}
-        className="tryon-dialog"
+        className={`tryon-dialog ${activeTab === "mirror" ? "tryon-dialog-mirror" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="tryon-modal-title"
@@ -122,57 +122,46 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
           isModelMode={isModelMode}
         />
 
-        <div className={`tryon-body-scroll ${activeTab === "mirror" ? "tryon-body-mirror" : ""}`}>
-          {activeTab === "twin" ? (
-            <div id="tryon-panel-twin" role="tabpanel" aria-labelledby="tryon-tab-twin">
-              <PaperDoll
-                deal={activeDeal}
-                profile={profile}
-                transform={transform}
-                onTransformChange={setTransform}
-                onResetTransform={() => setTransform(INITIAL_TRANSFORM)}
-              />
-              <SizeMatch deal={activeDeal} profile={profile} />
-              <ProfileSetup
-                profile={profile}
-                onChange={setProfile}
-                isFirstTime={isFirstTime}
-              />
-            </div>
-          ) : (
-            <div id="tryon-panel-mirror" role="tabpanel" aria-labelledby="tryon-tab-mirror" className="tryon-mirror-panel">
-              <CameraOverlay deal={activeDeal} />
-              <div className="tryon-deal-info" style={{ marginTop: "0.5rem" }}>
-                <h2 className="tryon-deal-title">{activeDeal.title}</h2>
-                <div className="tryon-deal-meta">
-                  <span className="tryon-deal-store">{activeDeal.store}</span>
-                  <span className="tryon-deal-price">₹{activeDeal.price.toLocaleString("en-IN")}</span>
-                </div>
-                <a
-                  href={activeDeal.buyUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="tryon-buy-btn"
-                  aria-label={`Buy ${activeDeal.title} on ${activeDeal.store}`}
-                >
-                  Buy on {activeDeal.store}
-                </a>
+        {activeTab === "twin" ? (
+          <>
+            <div className="tryon-body-scroll">
+              <div id="tryon-panel-twin" role="tabpanel" aria-labelledby="tryon-tab-twin">
+                <PaperDoll
+                  deal={activeDeal}
+                  profile={profile}
+                  transform={transform}
+                  onTransformChange={setTransform}
+                  onResetTransform={() => setTransform(INITIAL_TRANSFORM)}
+                />
+                <SizeMatch deal={activeDeal} profile={profile} />
+                <ProfileSetup
+                  profile={profile}
+                  onChange={setProfile}
+                  isFirstTime={isFirstTime}
+                />
               </div>
+              <p className="tryon-footnote">
+                Style preview only. Never indicates tailored fit. Check the store's size chart before buying.
+              </p>
             </div>
-          )}
-
-          <p className="tryon-footnote">
-            Style preview only. Never indicates tailored fit. Check the store's size chart before buying.
-          </p>
-        </div>
-
-        <footer className="tryon-footer-strip">
-          <DealStrip
-            deals={deals}
-            activeDealId={activeDeal.id}
-            onSelect={setSelectedDealId}
-          />
-        </footer>
+            <footer className="tryon-footer-strip">
+              <DealStrip
+                deals={deals}
+                activeDealId={activeDeal.id}
+                onSelect={setSelectedDealId}
+              />
+            </footer>
+          </>
+        ) : (
+          <div id="tryon-panel-mirror" role="tabpanel" aria-labelledby="tryon-tab-mirror" className="tryon-mirror-panel">
+            <CameraOverlay
+              deal={activeDeal}
+              deals={deals}
+              onSelectDeal={setSelectedDealId}
+              onClose={onClose}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
