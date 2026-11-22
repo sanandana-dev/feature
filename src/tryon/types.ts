@@ -1,3 +1,9 @@
+export type SizeChartEntry = {
+  size: string;
+  chestCm: number;
+  shoulderCm?: number;
+};
+
 export type Deal = {
   id: string;
   title: string;
@@ -6,12 +12,15 @@ export type Deal = {
   imageUrl: string;
   buyUrl: string;
   tryOnMode: "flat" | "model"; // "flat" = plain-background product photo
+  sizeChart?: SizeChartEntry[];
 };
 
 export type Profile = {
   heightCm: number;                      // 140-200, default 170
   build: "slim" | "regular" | "broad";   // default "regular"
   skin: string;                          // hex, one of 6 presets
+  chestCm?: number;                      // 70-140 cm
+  shoulderCm?: number;                   // 30-60 cm
 };
 
 export const SKIN_PRESETS: readonly string[] = [

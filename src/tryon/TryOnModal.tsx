@@ -6,6 +6,7 @@ import { PaperDoll, ShirtTransform } from "./PaperDoll";
 import { DealStrip } from "./DealStrip";
 import { TryOnTabs, TabMode } from "./TryOnTabs";
 import { CameraOverlay } from "./CameraOverlay";
+import { SizeMatch } from "./SizeMatch";
 import "./tryon.css";
 
 interface TryOnModalProps {
@@ -38,22 +39,12 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
     deals.find((d) => d.id === selectedDealId) || deals[0] || null;
   const isModelMode = activeDeal?.tryOnMode === "model";
 
-  // If switched to a model-only deal, return to twin tab safely
   useEffect(() => {
     if (isModelMode && activeTab === "mirror") {
       setActiveTab("twin");
     }
   }, [isModelMode, activeTab]);
 
-  const handleSelectDeal = (id: string) => {
-    setSelectedDealId(id);
-  };
-
-  const handleResetTransform = () => {
-    setTransform(INITIAL_TRANSFORM);
-  };
-
-  // Keyboard navigation & Focus trapping
   useEffect(() => {
     prevFocusedRef.current = document.activeElement as HTMLElement | null;
     const container = modalRef.current;
@@ -116,7 +107,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
             <h1 id="tryon-modal-title" className="tryon-title">
               Style Preview
             </h1>
-            <span className="tryon-badge-pill">v2 Live</span>
+            <span className="tryon-badge-pill">v3 Match</span>
           </div>
           <button
             type="button"
@@ -128,7 +119,6 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
           </button>
         </header>
 
-        {/* Tab Switcher: Body Twin vs Live Mirror */}
         <TryOnTabs
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -143,12 +133,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
                 profile={profile}
                 transform={transform}
                 onTransformChange={setTransform}
-                onResetTransform={handleResetTransform}
-              />
-              <ProfileSetup
-                profile={profile}
-                onChange={setProfile}
-                isFirstTime={isFirstTime}
+                onResetTransform={() => setTransform(INITIAL_TRANSFORM)}
               />
             </div>
           ) : (
@@ -173,6 +158,16 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
             </div>
           )}
 
+          {/* Size Match v3 */}
+          <SizeMatch deal={activeDeal} profile={profile} />
+
+          {/* Profile & Measurements Setup */}
+          <ProfileSetup
+            profile={profile}
+            onChange={setProfile}
+            isFirstTime={isFirstTime}
+          />
+
           <p className="tryon-footnote">
             Style preview only. Never indicates tailored fit. Check the store's size chart before buying.
           </p>
@@ -182,7 +177,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
           <DealStrip
             deals={deals}
             activeDealId={activeDeal.id}
-            onSelect={handleSelectDeal}
+            onSelect={setSelectedDealId}
           />
         </footer>
       </div>

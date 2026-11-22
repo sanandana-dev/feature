@@ -11,6 +11,12 @@ const MOCK_DEALS: Deal[] = [
     imageUrl: "https://placehold.co/400x400/ffffff/1e293b.png?text=Classic+Tee",
     buyUrl: "https://amazon.in",
     tryOnMode: "flat",
+    sizeChart: [
+      { size: "S", chestCm: 96, shoulderCm: 42 },
+      { size: "M", chestCm: 104, shoulderCm: 45 },
+      { size: "L", chestCm: 112, shoulderCm: 48 },
+      { size: "XL", chestCm: 120, shoulderCm: 51 },
+    ],
   },
   {
     id: "deal-2",
@@ -20,6 +26,13 @@ const MOCK_DEALS: Deal[] = [
     imageUrl: "https://placehold.co/400x400/ffffff/b91c1c.png?text=Fleece+Hoodie",
     buyUrl: "https://flipkart.com",
     tryOnMode: "flat",
+    sizeChart: [
+      { size: "XS", chestCm: 92, shoulderCm: 40 },
+      { size: "S", chestCm: 100, shoulderCm: 43 },
+      { size: "M", chestCm: 108, shoulderCm: 46 },
+      { size: "L", chestCm: 116, shoulderCm: 49 },
+      { size: "XL", chestCm: 124, shoulderCm: 52 },
+    ],
   },
   {
     id: "deal-3",
@@ -58,7 +71,7 @@ export const App: React.FC = () => {
       <header style={{ marginBottom: "1.5rem", borderBottom: "1px solid #e2e8f0", paddingBottom: "1rem" }}>
         <h1 style={{ fontSize: "1.75rem", margin: 0, color: "#0f172a" }}>DealFinder</h1>
         <p style={{ color: "#64748b", margin: "0.25rem 0 0" }}>
-          Compare top clothing deals across stores with quick <strong>Style Preview</strong>.
+          Compare top clothing deals across stores with quick <strong>Style Preview</strong> and <strong>Size Match</strong>.
         </p>
       </header>
 

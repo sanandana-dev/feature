@@ -22,7 +22,25 @@ function sanitizeProfile(raw: unknown): Profile {
       ? candidate.skin
       : DEFAULT_PROFILE.skin;
 
-  return { heightCm, build, skin };
+  const rawChest =
+    candidate.chestCm !== undefined && candidate.chestCm !== null
+      ? Number(candidate.chestCm)
+      : undefined;
+  const chestCm =
+    rawChest !== undefined && Number.isFinite(rawChest)
+      ? Math.min(140, Math.max(70, Math.round(rawChest)))
+      : undefined;
+
+  const rawShoulder =
+    candidate.shoulderCm !== undefined && candidate.shoulderCm !== null
+      ? Number(candidate.shoulderCm)
+      : undefined;
+  const shoulderCm =
+    rawShoulder !== undefined && Number.isFinite(rawShoulder)
+      ? Math.min(60, Math.max(30, Math.round(rawShoulder)))
+      : undefined;
+
+  return { heightCm, build, skin, chestCm, shoulderCm };
 }
 
 export function useProfile(): {
@@ -61,7 +79,6 @@ export function useProfile(): {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
         setIsFirstTime(false);
       } catch (err) {
-        // Fall back gracefully to memory-only state if storage is quota-limited or blocked
         console.warn("Storage write failed:", err);
       }
     }, 300);

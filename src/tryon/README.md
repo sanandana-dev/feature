@@ -1,17 +1,18 @@
-# DealFinder "Style Preview" (Try On v2 - Live Mirror)
+# DealFinder "Style Preview" (Try On v3 - Size Match)
 
-A lightweight, zero-AI, accessible "Style Preview" modal component for clothes shopping apps.
+A lightweight, zero-AI, accessible "Style Preview" and "Size Match" component for clothes shopping apps.
 
 ## Key Features
-- **100% Zero AI & Zero WebGL**: No ML models, no pose estimation, no canvas pixel reading, no heavy tracking libraries.
-- **Two Preview Modes**:
-  1. **Body Twin (v1)**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
-  2. **Live Mirror (v2)**: User's mirrored webcam feed with manual shoulder alignment.
-- **Privacy First**: Camera stream never leaves the client device; nothing is stored or uploaded.
-- **Interactive Alignment**: Drag to nudge, pinch or slider to scale, rotate slider (-15° to +15°), and "Center" / "Reset" helpers.
-- **60 FPS Performance**: Drag nudging uses direct CSS transforms and `requestAnimationFrame` with zero React re-renders on pointer moves.
-- **Snapshot Generator**: Local canvas snapshot without reading raw pixels (`drawImage` only).
-- **Graceful Model Photo Fallback**: Model-photo listings disable Style Preview and display clear price comparison.
+- **100% Zero AI & Zero WebGL**: No ML models, no pose tracking, no server calls.
+- **Style Preview (v1 & v2)**:
+  - **Body Twin**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
+  - **Live Mirror**: Mirrored local webcam feed with manual alignment.
+- **Size Match (v3)**:
+  - Deterministic recommendation engine based on store size charts.
+  - Pick smallest size where `chestCm >= user chest + 4` (comfort ease).
+  - Flags between-sizes and narrow shoulders (> 2 cm narrower than user).
+  - Explicit honest labeling: *"Size suggestion based on the store's chart. Check the store's size guide before buying."*
+  - Requires user chest input; never guesses.
 
 ---
 
@@ -31,12 +32,15 @@ A lightweight, zero-AI, accessible "Style Preview" modal component for clothes s
 
 ```
 src/tryon/
-  types.ts             # Deal, Profile, FitType definitions & constants
-  useProfile.ts        # Resilient localStorage hook with debounce
+  types.ts             # Deal, Profile, SizeChartEntry, FitType definitions
+  useProfile.ts        # Resilient localStorage hook with chest/shoulder validation
+  recommendSize.ts     # Pure function size recommendation engine
+  recommendSize.test.ts# Vitest unit tests for recommendSize
+  SizeMatch.tsx        # Size match suggestion card & size chart viewer
   useCamera.ts         # Camera state machine, error handling & stream lifecycle
   useCamera.test.ts    # Unit tests for camera state machine (Vitest)
   TryOnTabs.tsx        # Accessible WAI-ARIA tab navigation (Twin / Mirror)
-  ProfileSetup.tsx     # Height slider, segmented build control, 6 skin swatches
+  ProfileSetup.tsx     # Height slider, segmented build, skin tones, exact measurements
   PaperDoll.tsx        # Dynamic SVG silhouette + shirt overlay + drag/pinch
   CameraOverlay.tsx    # Mirrored video feed + un-mirrored shirt overlay + snapshot
   DealStrip.tsx        # Smooth scroll-snap horizontal strip of alternative deals
@@ -47,25 +51,13 @@ src/tryon/
 
 ---
 
-## Manual Test Checklist
-
-1. **Permission Denied**: Click "Turn on camera" and deny permissions in browser prompt -> Verify message: *"Camera permission was denied. Please allow camera access in browser settings."*
-2. **Camera In Use / Error**: Open camera in another program, or mock stream failure -> Verify friendly error card with retry CTA.
-3. **Tab Switch Track Teardown**: Start camera in "Mirror" tab, click "Body Twin" tab -> Verify camera indicator turns off immediately and tracks stop.
-4. **Deal Swap Alignment Persistence**: Move and scale shirt in Mirror mode, then tap a deal in the bottom strip -> Verify shirt image swaps immediately while user position and scale are preserved.
-5. **Model Photo Tab Disable**: Select a deal with `tryOnMode: "model"` -> Verify "Live Mirror" tab is disabled and user is alerted that style preview is unavailable for model photos.
-6. **Background Visibility Change**: Start camera, switch browser tabs -> Verify video stops and stream releases.
-7. **Snapshot Capture**: Tap "Take snapshot" -> Verify downloadable PNG is created with mirrored video feed and un-mirrored shirt graphic.
-
----
-
 ## Running and Testing
 
 ```bash
 # Install dependencies
 npm install
 
-# Run unit tests
+# Run all unit tests (13 tests: useCamera + recommendSize)
 npm test
 
 # Run Vite dev server

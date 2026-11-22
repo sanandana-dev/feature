@@ -746,3 +746,146 @@
   text-align: center;
   font-style: italic;
 }
+
+
+/* v3: Size Match & Exact Measurements */
+.tryon-measurements-section {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed var(--tryon-border);
+}
+
+.tryon-measure-toggle {
+  font-size: 0.8rem;
+  padding: 0;
+  color: var(--tryon-primary);
+  font-weight: 600;
+}
+
+.tryon-measurements-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-top: 0.5rem;
+}
+
+.tryon-measure-hint {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.7rem;
+  color: var(--tryon-text-muted);
+  line-height: 1.3;
+}
+
+.tryon-size-match-card {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.tryon-size-match-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tryon-size-match-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #166534;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.tryon-size-pill-rec {
+  font-size: 0.8rem;
+  background: #16a34a;
+  color: #fff;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 500;
+}
+.tryon-size-pill-rec strong {
+  font-weight: 800;
+}
+
+.tryon-size-empty-text {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+.tryon-size-subtext {
+  margin: 0.2rem 0 0 0;
+  font-size: 0.72rem;
+  color: var(--tryon-text-muted);
+}
+
+.tryon-size-message {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #14532d;
+  line-height: 1.35;
+}
+
+.tryon-size-shoulder-warning {
+  margin: 0.15rem 0 0 0;
+  font-size: 0.75rem;
+  color: #b45309;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  padding: 0.3rem 0.5rem;
+  border-radius: 6px;
+  line-height: 1.3;
+}
+
+.tryon-chart-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.25rem;
+}
+
+.tryon-chart-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.72rem;
+  text-align: left;
+}
+
+.tryon-chart-table th,
+.tryon-chart-table td {
+  padding: 0.25rem 0.4rem;
+  border-bottom: 1px solid #dcfce7;
+}
+
+.tryon-chart-table th {
+  color: #166534;
+  font-weight: 600;
+}
+
+.tryon-chart-table tr.active-row {
+  background: #dcfce7;
+  font-weight: 700;
+  color: #15803d;
+}
+
+.tryon-check-tag {
+  margin-left: 0.3rem;
+  font-size: 0.65rem;
+  background: #16a34a;
+  color: #fff;
+  padding: 0.05rem 0.25rem;
+  border-radius: 4px;
+}
+
+.tryon-size-disclaimer {
+  margin: 0;
+  font-size: 0.68rem;
+  color: #166534;
+  opacity: 0.85;
+  text-align: center;
+  font-style: italic;
+}
