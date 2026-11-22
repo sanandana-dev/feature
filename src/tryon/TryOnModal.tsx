@@ -122,7 +122,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
           isModelMode={isModelMode}
         />
 
-        <div className="tryon-body-scroll">
+        <div className={`tryon-body-scroll ${activeTab === "mirror" ? "tryon-body-mirror" : ""}`}>
           {activeTab === "twin" ? (
             <div id="tryon-panel-twin" role="tabpanel" aria-labelledby="tryon-tab-twin">
               <PaperDoll
@@ -132,11 +132,17 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
                 onTransformChange={setTransform}
                 onResetTransform={() => setTransform(INITIAL_TRANSFORM)}
               />
+              <SizeMatch deal={activeDeal} profile={profile} />
+              <ProfileSetup
+                profile={profile}
+                onChange={setProfile}
+                isFirstTime={isFirstTime}
+              />
             </div>
           ) : (
-            <div id="tryon-panel-mirror" role="tabpanel" aria-labelledby="tryon-tab-mirror">
+            <div id="tryon-panel-mirror" role="tabpanel" aria-labelledby="tryon-tab-mirror" className="tryon-mirror-panel">
               <CameraOverlay deal={activeDeal} />
-              <div className="tryon-deal-info" style={{ marginTop: "0.75rem" }}>
+              <div className="tryon-deal-info" style={{ marginTop: "0.5rem" }}>
                 <h2 className="tryon-deal-title">{activeDeal.title}</h2>
                 <div className="tryon-deal-meta">
                   <span className="tryon-deal-store">{activeDeal.store}</span>
@@ -154,16 +160,6 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
               </div>
             </div>
           )}
-
-          {/* Size Match v3 */}
-          <SizeMatch deal={activeDeal} profile={profile} />
-
-          {/* Profile & Measurements Setup */}
-          <ProfileSetup
-            profile={profile}
-            onChange={setProfile}
-            isFirstTime={isFirstTime}
-          />
 
           <p className="tryon-footnote">
             Style preview only. Never indicates tailored fit. Check the store's size chart before buying.

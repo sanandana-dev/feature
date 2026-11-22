@@ -35,7 +35,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
 
   const applyTransform = useCallback((x: number, y: number, s: number, r: number) => {
     if (shirtImgRef.current) {
-      shirtImgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s}) rotate(${r}deg)`;
+      shirtImgRef.current.style.transform = `translate3d(calc(-50% + ${x}px), ${y}px, 0) scale(${s}) rotate(${r}deg)`;
     }
   }, []);
 
@@ -122,7 +122,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
       if (img && img.complete) {
         ctx.save();
         const ratio = canvas.width / 300;
-        ctx.translate(canvas.width / 2 + posRef.current.x * ratio, canvas.height * 0.3 + posRef.current.y * ratio);
+        ctx.translate(canvas.width / 2 + posRef.current.x * ratio, canvas.height * 0.35 + posRef.current.y * ratio);
         ctx.rotate((rotate * Math.PI) / 180);
         ctx.scale(scale * ratio, scale * ratio);
         const w = 160;
@@ -141,22 +141,24 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
 
   return (
     <div className="tryon-camera-overlay">
-      <div className="tryon-doll-toolbar">
-        <div className="tryon-tool-item">
-          <label htmlFor="tryon-m-scale" className="tryon-tool-label">Size:</label>
-          <input id="tryon-m-scale" type="range" min={0.5} max={1.8} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="tryon-slider tryon-slider-mini" aria-label="Scale shirt" />
+      {/* Compact one-row toolbar under 56px */}
+      <div className="tryon-compact-toolbar">
+        <div className="tryon-tool-compact-group">
+          <label htmlFor="tryon-m-scale" className="tryon-tool-label">Size</label>
+          <input id="tryon-m-scale" type="range" min={0.5} max={1.8} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Scale shirt size" />
         </div>
-        <div className="tryon-tool-item">
-          <label htmlFor="tryon-m-rotate" className="tryon-tool-label">Rotate:</label>
-          <input id="tryon-m-rotate" type="range" min={-15} max={15} step={1} value={rotate} onChange={(e) => setRotate(Number(e.target.value))} className="tryon-slider tryon-slider-mini" aria-label="Rotate shirt" />
+        <div className="tryon-tool-compact-group">
+          <label htmlFor="tryon-m-rotate" className="tryon-tool-label">Rotate</label>
+          <input id="tryon-m-rotate" type="range" min={-15} max={15} step={1} value={rotate} onChange={(e) => setRotate(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Rotate shirt angle" />
         </div>
-        <div className="tryon-tool-item tryon-btn-group">
-          <button type="button" className={`tryon-action-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-pressed={showGuide}>Guide</button>
-          <button type="button" className="tryon-action-btn" onClick={centerShirt}>Center</button>
-          <button type="button" className="tryon-action-btn" onClick={resetAll}>Reset</button>
+        <div className="tryon-tool-icon-group">
+          <button type="button" className={`tryon-icon-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-label="Toggle shoulder guide" title="Toggle shoulder guide" aria-pressed={showGuide}>👤</button>
+          <button type="button" className="tryon-icon-btn" onClick={centerShirt} aria-label="Center shirt" title="Center shirt">🎯</button>
+          <button type="button" className="tryon-icon-btn" onClick={resetAll} aria-label="Reset position and size" title="Reset position and size">↺</button>
         </div>
       </div>
 
+      {/* Priority Viewport filling available modal height at 3:4 */}
       <div className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
         <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: state === "active" ? "visible" : "hidden" }} />
         {state !== "active" && (
@@ -177,9 +179,10 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
           </div>
         )}
         {showGuide && state === "active" && (
-          <svg className="tryon-shoulder-guide" viewBox="0 0 300 400" aria-hidden="true">
-            <ellipse cx="150" cy="85" rx="35" ry="45" fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="6 4" opacity="0.6" />
-            <path d="M 40 240 Q 80 160 115 150 Q 150 152 185 150 Q 220 160 260 240" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" opacity="0.6" />
+          <svg className="tryon-shoulder-guide" viewBox="0 0 300 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+            {/* Head circle sitting near top 15% - 40% (y: 60 to 160) */}
+            <ellipse cx="150" cy="110" rx="38" ry="50" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" />
+            <path d="M 30 250 Q 80 170 110 160 Q 150 163 190 160 Q 220 170 270 250" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" />
           </svg>
         )}
         {state === "active" && (

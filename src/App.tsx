@@ -8,7 +8,7 @@ const MOCK_DEALS: Deal[] = [
     title: "Classic Heavyweight Cotton Crewneck Tee",
     price: 499,
     store: "Amazon",
-    imageUrl: "https://placehold.co/400x400/ffffff/1e293b.png?text=Classic+Tee",
+    imageUrl: "/shirts/tee.svg",
     buyUrl: "https://amazon.in",
     tryOnMode: "flat",
     sizeChart: [

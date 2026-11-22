@@ -638,16 +638,89 @@
   cursor: not-allowed;
 }
 
+.tryon-compact-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--tryon-surface);
+  border: 1px solid var(--tryon-border);
+  border-radius: 8px;
+  max-height: 48px;
+  height: 48px;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.tryon-tool-compact-group {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.tryon-slider-tiny {
+  width: 55px;
+}
+
+.tryon-tool-icon-group {
+  display: flex;
+  gap: 0.25rem;
+  align-items: center;
+}
+
+.tryon-icon-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.95rem;
+  border: 1px solid var(--tryon-border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.tryon-icon-btn:hover {
+  background: #f1f5f9;
+}
+
+.tryon-icon-btn.active {
+  background: #eff6ff;
+  border-color: var(--tryon-primary);
+}
+
+.tryon-body-mirror {
+  display: flex;
+  flex-direction: column;
+}
+
+.tryon-mirror-panel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+}
+
 .tryon-camera-overlay {
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  gap: 0.75rem;
+  flex: 1;
+  min-height: 0;
+  gap: 0.5rem;
 }
 
 .tryon-mirror-viewport {
   position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
   width: 100%;
   aspect-ratio: 3 / 4;
   margin: 0 auto;
@@ -665,6 +738,18 @@
   .tryon-mirror-viewport {
     max-height: 55vh;
     max-width: calc(55vh * 3 / 4);
+  }
+  .tryon-card-thumb-wrap {
+    height: 56px;
+  }
+  .tryon-strip-item {
+    flex: 0 0 74px;
+  }
+  .tryon-card-store {
+    display: none;
+  }
+  .tryon-footer-strip {
+    padding: 0.3rem 0.5rem;
   }
 }
 
@@ -722,13 +807,13 @@
   height: 100%;
   pointer-events: none;
   z-index: 2;
+  opacity: 0.6;
 }
 
 .tryon-mirror-shirt-img {
   position: absolute;
-  top: 25%;
+  top: 35%;
   left: 50%;
-  margin-left: -85px;
   width: 170px;
   height: auto;
   max-height: 240px;
