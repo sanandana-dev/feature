@@ -1,16 +1,16 @@
-# DealFinder "Style Preview" (Try On v4 - Classical CV Auto-Fit)
+# DealFinder "Style Preview" & Live Mirror
 
-An accessible "Style Preview" and "Size Match" component for apparel comparison apps.
+An accessible, on-device virtual try-on and size suggestion component for apparel comparison apps.
 
 ## Key Features
 - **Style Preview Modes**:
-  - **Body Twin (Zero-AI)**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
-  - **Manual Mirror (Zero-AI Fallback)**: Mirrored local webcam feed with manual alignment, scale, rotation, and snapshot capture.
-  - **Auto-Fit (no AI)**: Real-time classical computer vision using background subtraction, auto-exposure normalization, morphological filtering, and silhouette extraction. Warps a 10x12 garment mesh with Verlet cloth simulation and procedural shading. Zero ML dependencies.
+  - **Live Mirror (Auto-Fit)**: Real-time classical computer vision using background subtraction, auto-exposure normalization, morphological filtering, and silhouette extraction. Warps a 10x12 garment mesh with Verlet cloth dynamics and procedural shading directly over the mirrored webcam. Zero ML models, 100% on-device.
+  - **Manual Mirror (Fallback)**: Mirrored local webcam feed with manual alignment, scale, rotation, and snapshot capture.
+  - **Body Twin**: Parametric SVG body silhouette scaled to user's height, build, and skin tone with interactive drag-and-pinch alignment.
 - **Size Match (v3)**:
   - Deterministic size chart matching (`chestCm >= user chest + 4` ease).
   - Flags between-sizes and narrow shoulders (> 2 cm narrower than user).
-  - Explicit honest labeling: *"Size suggestion based on the store's chart. Check the store's size guide before buying."*
+  - Honest labeling: *"Size suggestion based on the store's chart. Check the store's size guide before buying."*
 
 ---
 
@@ -33,20 +33,25 @@ src/tryon/
   PaperDoll.tsx        # Dynamic SVG silhouette + shirt overlay + drag/pinch
   CameraOverlay.tsx    # Live mirror view orchestrating manual & Auto-Fit modes
   AutoFitControls.tsx  # Fabric, Realism, Silhouette overlay & Recalibrate controls
+  CalibrationOverlay.tsx # Countdown & background capturing status overlay
+  MirrorControlsBar.tsx  # Compact size, rotation, blend mode & Auto-Fit switch bar
   DealStrip.tsx        # Scroll-snap horizontal strip of alternative deals
   TryOnModal.tsx       # Focus-trapped dialog orchestrating all components
   tryon.css            # Responsive styles, blend modes, animations
   hooks/
     useAutoFitCv.ts    # Classical CV detection loop, calibration flow & rendering
+    useCvFilters.ts    # 1€Filter filter instances for silhouette measurements
     useShirtGestures.ts# Touch/pointer pinch & drag gesture handler
   cv/
     types.ts           # BackgroundModel, RowProfile, BodyMeasurements types
     backgroundModel.ts # Mean/variance model accumulation, validation & bump detection
     foregroundMask.ts  # Exposure gain, difference thresholding, morphology, flood-fill
     silhouetteMeasurements.ts # Head, neck, shoulder extraction & centerline fit
+    detectSilhouette.ts# Combined foreground & silhouette detection pipeline
+    meshBuilder.ts     # 10x12 mesh pinned to silhouette with armpit clamping
     oneEuroFilter.ts   # Adaptive low-latency jitter filter (1€ Filter)
     trackingState.ts   # Smooth fading state manager for lost/regained tracking
-    meshBuilder.ts     # 10x12 mesh pinned to silhouette with armpit clamping
+    renderSilhouetteOverlay.ts # Debug silhouette mask visualizer
     cv.test.ts         # Vitest unit tests with synthetic silhouette masks
   render/
     clothSimulation.ts # Verlet spring physics for fabric sway & lag
@@ -62,7 +67,7 @@ src/tryon/
 # Install dependencies
 npm install
 
-# Run all unit tests (26 tests)
+# Run all unit tests (30 tests)
 npm test
 
 # Run Vite dev server
