@@ -659,6 +659,13 @@
   user-select: none;
 }
 
+@media (max-height: 700px) {
+  .tryon-mirror-viewport {
+    max-height: 55vh;
+    max-width: calc(55vh * 3 / 4);
+  }
+}
+
 .tryon-mirror-viewport:active {
   cursor: grabbing;
 }
@@ -709,11 +716,19 @@
   pointer-events: none;
 }
 
-.tryon-mirror-shirt-box {
+.tryon-mirror-shirt-img {
   position: absolute;
   top: 25%;
+  left: 50%;
+  margin-left: -85px;
   width: 170px;
+  height: auto;
+  max-height: 240px;
+  object-fit: contain;
+  mix-blend-mode: multiply;
   pointer-events: none;
+  filter: contrast(1.05);
+  will-change: transform;
 }
 
 .tryon-snapshot-alert {

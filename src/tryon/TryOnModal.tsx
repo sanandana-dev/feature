@@ -103,12 +103,9 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <header className="tryon-header">
-          <div className="tryon-header-text">
-            <h1 id="tryon-modal-title" className="tryon-title">
-              Style Preview
-            </h1>
-            <span className="tryon-badge-pill">v3 Match</span>
-          </div>
+          <h1 id="tryon-modal-title" className="tryon-title">
+            Style Preview
+          </h1>
           <button
             type="button"
             className="tryon-close-btn"

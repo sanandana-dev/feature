@@ -26,7 +26,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [snapshotMsg, setSnapshotMsg] = useState<string>("");
 
-  const shirtBoxRef = useRef<HTMLDivElement>(null);
+  const shirtImgRef = useRef<HTMLImageElement>(null);
   const posRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map());
   const pinchStart = useRef<{ dist: number; scale: number } | null>(null);
@@ -34,12 +34,11 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
   const rafId = useRef<number | null>(null);
 
   const applyTransform = useCallback((x: number, y: number, s: number, r: number) => {
-    if (shirtBoxRef.current) {
-      shirtBoxRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s}) rotate(${r}deg)`;
+    if (shirtImgRef.current) {
+      shirtImgRef.current.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${s}) rotate(${r}deg)`;
     }
   }, []);
 
-  // Sync when scale or rotate slider changes
   useEffect(() => {
     applyTransform(posRef.current.x, posRef.current.y, scale, rotate);
     try {
@@ -47,8 +46,8 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
     } catch {}
   }, [scale, rotate, applyTransform]);
 
-  // Pointer dragging with requestAnimationFrame (avoids re-rendering React state on move)
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (state !== "active") return;
     e.currentTarget.setPointerCapture(e.pointerId);
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pointers.current.size === 1) lastSingle.current = { x: e.clientX, y: e.clientY };
@@ -59,7 +58,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!pointers.current.has(e.pointerId)) return;
+    if (state !== "active" || !pointers.current.has(e.pointerId)) return;
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
 
     if (pointers.current.size === 1 && lastSingle.current) {
@@ -115,20 +114,18 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
     if (!ctx) return;
 
     try {
-      // 1. Draw mirrored video feed
       ctx.save();
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
 
-      // 2. Draw shirt un-mirrored with user offsets
-      const img = shirtBoxRef.current?.querySelector("img");
+      const img = shirtImgRef.current;
       if (img && img.complete) {
         ctx.save();
         const stageW = 300;
         const scaleRatio = canvas.width / stageW;
-        ctx.translate(canvas.width / 2 + posRef.current.x * scaleRatio, (canvas.height * 0.3) + posRef.current.y * scaleRatio);
+        ctx.translate(canvas.width / 2 + posRef.current.x * scaleRatio, canvas.height * 0.3 + posRef.current.y * scaleRatio);
         ctx.rotate((rotate * Math.PI) / 180);
         ctx.scale(scale * scaleRatio, scale * scaleRatio);
         const drawW = 160;
@@ -177,7 +174,9 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
                 <p className="tryon-camera-privacy">Your camera stays on your device. Nothing is recorded or uploaded.</p>
                 {errorMessage && <p className="tryon-camera-err-text">{errorMessage}</p>}
                 {state !== "unsupported" && (
-                  <button type="button" className="tryon-buy-btn" onClick={() => startCamera()}>Turn on camera</button>
+                  <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">
+                    Turn on camera
+                  </button>
                 )}
               </>
             )}
@@ -191,9 +190,17 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
           </svg>
         )}
 
-        <div ref={shirtBoxRef} className="tryon-mirror-shirt-box" style={{ willChange: "transform" }}>
-          <img src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className="tryon-shirt-img" draggable={false} />
-        </div>
+        {state === "active" && (
+          <img
+            ref={shirtImgRef}
+            src={deal.imageUrl}
+            alt={deal.title}
+            crossOrigin="anonymous"
+            referrerPolicy="no-referrer"
+            className="tryon-mirror-shirt-img"
+            draggable={false}
+          />
+        )}
       </div>
 
       {snapshotMsg && <p className="tryon-snapshot-alert" role="status">{snapshotMsg}</p>}
@@ -207,7 +214,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
             )}
           </div>
         )}
-        <p className="tryon-honest-label">Line up the shirt with your shoulders. This is a style preview, not a fit check.</p>
+        <p className="tryon-honest-label">Colors can look slightly different on camera. This is a style preview, not a fit check.</p>
       </div>
     </div>
   );
