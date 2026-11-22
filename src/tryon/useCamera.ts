@@ -3,6 +3,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 export type CameraState =
   | "idle"
   | "requesting"
+  | "waiting-for-video"
   | "active"
   | "denied"
   | "no-camera"
@@ -14,6 +15,7 @@ export function useCamera() {
   const [errorMessage, setErrorMessage] = useState<string>("");
   const [hasMultipleCameras, setHasMultipleCameras] = useState<boolean>(false);
   const [facingMode, setFacingMode] = useState<"user" | "environment">("user");
+  const [stream, setStream] = useState<MediaStream | null>(null);
 
   const streamRef = useRef<MediaStream | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -23,6 +25,7 @@ export function useCamera() {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    setStream(null);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -32,7 +35,6 @@ export function useCamera() {
 
   const startCamera = useCallback(
     async (preferredFacing: "user" | "environment" = facingMode) => {
-      // 1. Check support & secure context
       const isMediaSupported =
         typeof navigator !== "undefined" &&
         !!navigator.mediaDevices &&
@@ -44,7 +46,6 @@ export function useCamera() {
         return;
       }
 
-      // Stop any existing stream before starting a new one
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
@@ -54,7 +55,7 @@ export function useCamera() {
       setErrorMessage("");
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: preferredFacing,
             width: { ideal: 720 },
@@ -63,22 +64,16 @@ export function useCamera() {
           audio: false,
         });
 
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-        setState("active");
+        streamRef.current = mediaStream;
+        setStream(mediaStream);
+        setState("waiting-for-video");
 
-        // Enumerate devices to check if multiple cameras exist
         try {
           if (typeof navigator.mediaDevices.enumerateDevices === "function") {
             const devices = await navigator.mediaDevices.enumerateDevices();
-            const videoInputs = devices.filter((d) => d.kind === "videoinput");
-            setHasMultipleCameras(videoInputs.length > 1);
+            setHasMultipleCameras(devices.filter((d) => d.kind === "videoinput").length > 1);
           }
-        } catch {
-          // Non-critical: keep hasMultipleCameras false
-        }
+        } catch {}
       } catch (err: unknown) {
         const error = err as { name?: string; message?: string };
         const errName = error?.name || "";
@@ -104,6 +99,51 @@ export function useCamera() {
     await startCamera(nextFacing);
   }, [facingMode, startCamera]);
 
+  // Attach stream to video element and handle playback
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl || !stream) return;
+
+    videoEl.srcObject = stream;
+
+    const handleLoadedMetadata = () => {
+      setState("active");
+      try {
+        const playPromise = videoEl.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {});
+        }
+      } catch {}
+    };
+
+    videoEl.addEventListener("loadedmetadata", handleLoadedMetadata);
+
+    try {
+      const playPromise = videoEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {});
+      }
+    } catch {}
+
+    if (videoEl.readyState >= 1) {
+      handleLoadedMetadata();
+    }
+
+    return () => {
+      videoEl.removeEventListener("loadedmetadata", handleLoadedMetadata);
+    };
+  }, [stream]);
+
+  // 5-second timeout for waiting-for-video state
+  useEffect(() => {
+    if (state !== "waiting-for-video") return;
+    const timer = setTimeout(() => {
+      setState("error");
+      setErrorMessage("Camera is on but no video. Close other apps using the camera and try again");
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, [state]);
+
   // Stop camera on tab hidden (visibilitychange)
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -111,11 +151,8 @@ export function useCamera() {
         stopCamera();
       }
     };
-
     document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [stopCamera]);
 
   // Stop tracks on unmount
@@ -133,7 +170,7 @@ export function useCamera() {
     errorMessage,
     hasMultipleCameras,
     videoRef,
-    stream: streamRef.current,
+    stream,
     startCamera,
     stopCamera,
     switchCamera,

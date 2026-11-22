@@ -76,8 +76,8 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
     } else if (pointers.current.size === 2 && pinchStart.current) {
       const [p1, p2] = Array.from(pointers.current.values());
       const dist = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-      const nextScale = Math.min(2.0, Math.max(0.5, pinchStart.current.scale * (dist / pinchStart.current.dist)));
-      setScale(Number(nextScale.toFixed(2)));
+      const next = Math.min(2.0, Math.max(0.5, pinchStart.current.scale * (dist / pinchStart.current.dist)));
+      setScale(Number(next.toFixed(2)));
     }
   };
 
@@ -112,31 +112,26 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
     canvas.height = video.videoHeight || 480;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
     try {
       ctx.save();
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.restore();
-
       const img = shirtImgRef.current;
       if (img && img.complete) {
         ctx.save();
-        const stageW = 300;
-        const scaleRatio = canvas.width / stageW;
-        ctx.translate(canvas.width / 2 + posRef.current.x * scaleRatio, canvas.height * 0.3 + posRef.current.y * scaleRatio);
+        const ratio = canvas.width / 300;
+        ctx.translate(canvas.width / 2 + posRef.current.x * ratio, canvas.height * 0.3 + posRef.current.y * ratio);
         ctx.rotate((rotate * Math.PI) / 180);
-        ctx.scale(scale * scaleRatio, scale * scaleRatio);
-        const drawW = 160;
-        const drawH = (img.naturalHeight / (img.naturalWidth || 1)) * drawW;
-        ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
+        ctx.scale(scale * ratio, scale * ratio);
+        const w = 160;
+        const h = (img.naturalHeight / (img.naturalWidth || 1)) * w;
+        ctx.drawImage(img, -w / 2, -h / 2, w, h);
         ctx.restore();
       }
-
-      const dataUrl = canvas.toDataURL("image/png");
       const a = document.createElement("a");
-      a.href = dataUrl;
+      a.href = canvas.toDataURL("image/png");
       a.download = `style-preview-${deal.id}.png`;
       a.click();
     } catch {
@@ -163,43 +158,32 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
       </div>
 
       <div className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
-        {state === "active" ? (
-          <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" />
-        ) : (
+        <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: state === "active" ? "visible" : "hidden" }} />
+        {state !== "active" && (
           <div className="tryon-camera-prompt">
-            {state === "requesting" ? (
-              <p>Requesting camera access...</p>
-            ) : (
+            {state === "requesting" && <p>Requesting camera access...</p>}
+            {state === "waiting-for-video" && <p>Starting camera...</p>}
+            {state !== "requesting" && state !== "waiting-for-video" && (
               <>
                 <p className="tryon-camera-privacy">Your camera stays on your device. Nothing is recorded or uploaded.</p>
                 {errorMessage && <p className="tryon-camera-err-text">{errorMessage}</p>}
                 {state !== "unsupported" && (
                   <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">
-                    Turn on camera
+                    {state === "error" || state === "denied" ? "Retry" : "Turn on camera"}
                   </button>
                 )}
               </>
             )}
           </div>
         )}
-
         {showGuide && state === "active" && (
           <svg className="tryon-shoulder-guide" viewBox="0 0 300 400" aria-hidden="true">
             <ellipse cx="150" cy="85" rx="35" ry="45" fill="none" stroke="#2563eb" strokeWidth="2" strokeDasharray="6 4" opacity="0.6" />
             <path d="M 40 240 Q 80 160 115 150 Q 150 152 185 150 Q 220 160 260 240" fill="none" stroke="#2563eb" strokeWidth="2.5" strokeDasharray="6 4" opacity="0.6" />
           </svg>
         )}
-
         {state === "active" && (
-          <img
-            ref={shirtImgRef}
-            src={deal.imageUrl}
-            alt={deal.title}
-            crossOrigin="anonymous"
-            referrerPolicy="no-referrer"
-            className="tryon-mirror-shirt-img"
-            draggable={false}
-          />
+          <img ref={shirtImgRef} src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className="tryon-mirror-shirt-img" draggable={false} />
         )}
       </div>
 
@@ -209,9 +193,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal }) => {
         {state === "active" && (
           <div className="tryon-mirror-actions">
             <button type="button" className="tryon-action-btn" onClick={takeSnapshot}>Take snapshot</button>
-            {hasMultipleCameras && (
-              <button type="button" className="tryon-action-btn" onClick={switchCamera}>Switch camera</button>
-            )}
+            {hasMultipleCameras && <button type="button" className="tryon-action-btn" onClick={switchCamera}>Switch camera</button>}
           </div>
         )}
         <p className="tryon-honest-label">Colors can look slightly different on camera. This is a style preview, not a fit check.</p>

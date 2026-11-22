@@ -90,6 +90,50 @@ describe("useCamera state machine", () => {
     expect(result.current.errorMessage).toContain("not supported");
   });
 
+  it("sets video.srcObject and calls play() when stream arrives", async () => {
+    const playMock = vi.fn().mockResolvedValue(undefined);
+    let metadataCb: (() => void) | null = null;
+    const mockVideo = {
+      srcObject: null,
+      readyState: 0,
+      play: playMock,
+      addEventListener: vi.fn((evt: string, cb: () => void) => {
+        if (evt === "loadedmetadata") metadataCb = cb;
+      }),
+      removeEventListener: vi.fn(),
+    } as unknown as HTMLVideoElement;
+
+    const mockStream = {
+      getTracks: () => [],
+    } as unknown as MediaStream;
+
+    Object.defineProperty(navigator, "mediaDevices", {
+      value: {
+        getUserMedia: vi.fn().mockResolvedValue(mockStream),
+        enumerateDevices: vi.fn().mockResolvedValue([]),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const { result } = renderHook(() => useCamera());
+    result.current.videoRef.current = mockVideo;
+
+    await act(async () => {
+      await result.current.startCamera();
+    });
+
+    expect(mockVideo.srcObject).toBe(mockStream);
+    expect(playMock).toHaveBeenCalled();
+    expect(result.current.state).toBe("waiting-for-video");
+
+    act(() => {
+      if (metadataCb) metadataCb();
+    });
+
+    expect(result.current.state).toBe("active");
+  });
+
   it("stops all media tracks when the hook unmounts", async () => {
     const stopTrack = vi.fn();
     const mockTrack = { stop: stopTrack } as unknown as MediaStreamTrack;
@@ -112,7 +156,6 @@ describe("useCamera state machine", () => {
       await result.current.startCamera();
     });
 
-    expect(result.current.state).toBe("active");
     expect(stopTrack).not.toHaveBeenCalled();
 
     unmount();
