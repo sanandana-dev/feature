@@ -4,10 +4,12 @@ import { useCamera } from "./useCamera";
 import { useFullscreen } from "./useFullscreen";
 import { DealStrip } from "./DealStrip";
 import { captureMirrorSnapshot } from "./snapshot";
-import { useAutoFit } from "./hooks/useAutoFit";
+import { useAutoFitCv } from "./hooks/useAutoFitCv";
 import { useShirtGestures } from "./hooks/useShirtGestures";
-import { AutoFitSubBar } from "./AutoFitControls";
-import { FabricType, RealismLevel } from "./pose/types";
+import { AutoFitControls } from "./AutoFitControls";
+import { CalibrationOverlay } from "./CalibrationOverlay";
+import { MirrorControlsBar } from "./MirrorControlsBar";
+import { FabricType, RealismLevel } from "./cv/types";
 
 interface CameraOverlayProps {
   deal: Deal;
@@ -18,7 +20,7 @@ interface CameraOverlayProps {
 
 export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSelectDeal, onClose }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const { state, errorMessage, videoRef, startCamera, stopCamera } = useCamera();
+  const { state: camState, errorMessage, videoRef, startCamera, stopCamera } = useCamera();
   const { isFullscreen, isPseudoFullscreen, toggleFullscreen, exitFullscreen } = useFullscreen(containerRef);
 
   const [scale, setScale] = useState<number>(() => {
@@ -35,9 +37,11 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
   const [controlsVisible, setControlsVisible] = useState<boolean>(true);
   const [vpDim, setVpDim] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
+  // Classical CV Auto-Fit (no AI)
   const [autoFitEnabled, setAutoFitEnabled] = useState<boolean>(false);
   const [fabric, setFabric] = useState<FabricType>("cotton");
   const [realism, setRealism] = useState<RealismLevel>("high");
+  const [showSilhouette, setShowSilhouette] = useState<boolean>(false);
 
   const shirtImgRef = useRef<HTMLImageElement>(null);
   const autoFitCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,25 +56,21 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
   const isFlat = deal.tryOnMode === "flat";
   const effectiveAutoFit = autoFitEnabled && isFlat;
 
-  const { state: autoFitState, isCalibrated, fps, latencyMs, qualityLevel } = useAutoFit({
-    enabled: effectiveAutoFit && state === "active",
+  const {
+    state: cvState, calibStep, calibCountdown, fps, latencyMs, qualityLevel, startCalibration,
+  } = useAutoFitCv({
+    enabled: effectiveAutoFit && camState === "active",
     videoRef,
     canvasRef: autoFitCanvasRef,
     shirtImgRef,
     fit: "regular",
     fabric,
     realism,
+    showSilhouette,
     manualOffset: posRef.current,
     manualScale: scale,
     manualRotateDeg: rotate,
   });
-
-  useEffect(() => {
-    if (autoFitState === "error" && autoFitEnabled) {
-      setAutoFitEnabled(false);
-      setSnapshotMsg("Auto-Fit body tracking failed or model file is missing. Reverted to manual mode.");
-    }
-  }, [autoFitState, autoFitEnabled]);
 
   const isLandscape = vpDim.w >= vpDim.h;
   const baseWidth = Math.min(900, Math.max(280, (vpDim.w || (isLandscape ? 800 : 400)) * (isLandscape ? 0.55 : 0.85)));
@@ -118,7 +118,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
   }, [isFullscreen, resetHideTimer]);
 
   const { onPointerDown, onPointerMove, onPointerUp } = useShirtGestures({
-    isActive: state === "active",
+    isActive: camState === "active",
     scale,
     rotate,
     setScale,
@@ -138,34 +138,31 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
     onGestureEnd: resetHideTimer,
   });
 
-  const autoFitStatusText = (() => {
-    if (!effectiveAutoFit) return "";
-    if (autoFitState === "loading") return "Loading body tracking...";
-    if (autoFitState === "lost") return "No body found";
-    if (autoFitState === "tracking") return isCalibrated ? "Tracking on" : "Stand back so your shoulders are in view";
-    return "";
-  })();
+  const statusText = !effectiveAutoFit ? "" :
+    calibStep === "countdown" ? `Step out of frame... ${calibCountdown}` :
+    calibStep === "capturing" ? "Capturing background..." :
+    calibStep === "failed" ? "Background wasn't steady, try again" :
+    cvState === "bumped" ? "Camera moved, please recalibrate" :
+    cvState === "lost" ? "No silhouette found" :
+    cvState === "tracking" ? "Auto-Fit Tracking ✓" : "";
 
   const isFull = isFullscreen || isPseudoFullscreen;
 
   return (
     <div ref={containerRef} className={`tryon-camera-overlay ${isFull ? "tryon-fullscreen-active" : ""}`} onPointerMove={resetHideTimer} onClick={resetHideTimer}>
       <div className={`tryon-fs-top-bar tryon-fs-overlay ${!controlsVisible && isFull ? "hidden" : ""}`} onPointerEnter={() => { isHoveringControls.current = true; }} onPointerLeave={() => { isHoveringControls.current = false; resetHideTimer(); }}>
-        <div className="tryon-translucent-pill">
-          <label htmlFor="tryon-fs-scale" className="tryon-fs-label">Size</label>
-          <input id="tryon-fs-scale" type="range" min={0.5} max={2.0} step={0.05} value={scale} onChange={(e) => setScale(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Scale shirt size" />
-          <label htmlFor="tryon-fs-rotate" className="tryon-fs-label">Rotate</label>
-          <input id="tryon-fs-rotate" type="range" min={-15} max={15} step={1} value={rotate} onChange={(e) => setRotate(Number(e.target.value))} className="tryon-slider tryon-slider-tiny" aria-label="Rotate shirt angle" />
-          <div className="tryon-blend-toggle" role="group" aria-label="Blend mode">
-            <button type="button" className={`tryon-blend-btn ${effectiveBlend === "realistic" ? "active" : ""}`} onClick={() => setBlendMode("realistic")} aria-label="Realistic blend mode">Realistic</button>
-            <button type="button" className={`tryon-blend-btn ${effectiveBlend === "solid" ? "active" : ""}`} onClick={() => isTransparent && setBlendMode("solid")} disabled={!isTransparent} title={!isTransparent ? "Needs a transparent image" : "Solid blend mode"} aria-label="Solid blend mode">Solid</button>
-          </div>
-          {isFlat && (
-            <button type="button" className={`tryon-autofit-switch ${effectiveAutoFit ? "active" : ""}`} onClick={() => setAutoFitEnabled((v) => !v)} aria-label="Toggle Auto-Fit live body tracking" aria-pressed={effectiveAutoFit}>
-              Auto-Fit (beta)
-            </button>
-          )}
-        </div>
+        <MirrorControlsBar
+          scale={scale}
+          rotate={rotate}
+          blendMode={blendMode}
+          isTransparent={isTransparent}
+          isFlat={isFlat}
+          autoFitEnabled={effectiveAutoFit}
+          onScaleChange={setScale}
+          onRotateChange={setRotate}
+          onBlendChange={setBlendMode}
+          onToggleAutoFit={() => setAutoFitEnabled((v) => !v)}
+        />
         <div className="tryon-fs-actions">
           <button type="button" className={`tryon-touch-btn ${showGuide ? "active" : ""}`} onClick={() => setShowGuide((v) => !v)} aria-label="Toggle shoulder guide" title="Toggle shoulder guide" aria-pressed={showGuide}>👤</button>
           <button type="button" className="tryon-touch-btn" onClick={() => { posRef.current = { x: 0, y: 0 }; setRotate(0); setHasDragged(false); applyTransform(0, 0, scale, 0); }} aria-label="Center shirt" title="Center shirt">🎯</button>
@@ -180,40 +177,48 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
         <span className="tryon-deal-compact-title">{deal.title}</span>
         <span className="tryon-deal-compact-price">₹{deal.price.toLocaleString("en-IN")}</span>
         <a href={deal.buyUrl} target="_blank" rel="noopener noreferrer" className="tryon-buy-btn tryon-buy-btn-compact" aria-label={`Buy on ${deal.store}`}>Buy on {deal.store}</a>
-        {effectiveAutoFit && autoFitStatusText && (
-          <span className={`tryon-autofit-badge ${isCalibrated ? "calibrated" : ""}`}>
-            {autoFitStatusText} {isCalibrated && "✓"}
-          </span>
+        {effectiveAutoFit && statusText && (
+          <span className={`tryon-autofit-badge ${cvState === "tracking" ? "calibrated" : ""}`}>{statusText}</span>
         )}
       </div>
 
       {effectiveAutoFit && (
-        <AutoFitSubBar visible={controlsVisible} isFull={isFull} fabric={fabric} realism={realism} onFabricChange={setFabric} onRealismChange={setRealism} />
+        <AutoFitControls visible={controlsVisible} isFull={isFull} fabric={fabric} realism={realism} showSilhouette={showSilhouette} onFabricChange={setFabric} onRealismChange={setRealism} onToggleSilhouette={() => setShowSilhouette((v) => !v)} onRecalibrate={startCalibration} />
       )}
 
-      {import.meta.env.DEV && effectiveAutoFit && autoFitState === "tracking" && (
+      {import.meta.env.DEV && effectiveAutoFit && cvState === "tracking" && (
         <div className="tryon-dev-fps" aria-hidden="true">{fps} FPS | {latencyMs}ms | {qualityLevel}</div>
       )}
 
-      <div aria-live="polite" className="tryon-sr-only">{autoFitStatusText}</div>
+      <div aria-live="polite" className="tryon-sr-only">{statusText}</div>
 
       <div ref={viewportRef} className="tryon-mirror-viewport" onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} style={{ touchAction: "none" }}>
-        <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: state === "active" ? "visible" : "hidden" }} />
-        <canvas ref={autoFitCanvasRef} className={`tryon-mirror-autofit-canvas ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ display: effectiveAutoFit && autoFitState !== "off" ? "block" : "none" }} />
-        {state !== "active" && (
+        <video ref={videoRef} autoPlay playsInline muted className="tryon-mirror-video" style={{ visibility: camState === "active" ? "visible" : "hidden" }} />
+        <canvas ref={autoFitCanvasRef} className={`tryon-mirror-autofit-canvas ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ display: effectiveAutoFit && calibStep === "ready" ? "block" : "none" }} />
+
+        {effectiveAutoFit && (
+          <CalibrationOverlay
+            step={calibStep}
+            countdown={calibCountdown}
+            onRetry={startCalibration}
+          />
+        )}
+
+        {camState !== "active" && (
           <div className="tryon-camera-prompt">
-            {state === "requesting" && <p>Requesting camera access...</p>}
-            {state === "waiting-for-video" && <p>Starting camera...</p>}
-            {state !== "requesting" && state !== "waiting-for-video" && (
+            {camState === "requesting" && <p>Requesting camera access...</p>}
+            {camState === "waiting-for-video" && <p>Starting camera...</p>}
+            {camState !== "requesting" && camState !== "waiting-for-video" && (
               <>
                 <p className="tryon-camera-privacy">Your camera stays on your device. Nothing is recorded or uploaded.</p>
                 {errorMessage && <p className="tryon-camera-err-text">{errorMessage}</p>}
-                {state !== "unsupported" && <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">{state === "error" || state === "denied" ? "Retry" : "Turn on camera"}</button>}
+                {camState !== "unsupported" && <button type="button" className="tryon-buy-btn" onClick={() => startCamera()} aria-label="Turn on camera">{camState === "error" || camState === "denied" ? "Retry" : "Turn on camera"}</button>}
               </>
             )}
           </div>
         )}
-        {showGuide && state === "active" && !effectiveAutoFit && (
+
+        {showGuide && camState === "active" && !effectiveAutoFit && (
           <>
             <svg className="tryon-shoulder-guide" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
               <ellipse cx="500" cy="280" rx="55" ry="70" vectorEffect="non-scaling-stroke" fill="none" stroke="#60a5fa" strokeWidth="2.5" strokeDasharray="8 6" />
@@ -222,8 +227,9 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
             {!hasDragged && <p className="tryon-guide-caption" aria-hidden="true">Line up your shoulders here</p>}
           </>
         )}
-        {state === "active" && (
-          <img ref={shirtImgRef} src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className={`tryon-mirror-shirt-img ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ width: `${baseWidth}px`, display: effectiveAutoFit && autoFitState === "tracking" ? "none" : "block" }} draggable={false} />
+
+        {camState === "active" && (
+          <img ref={shirtImgRef} src={deal.imageUrl} alt={deal.title} crossOrigin="anonymous" referrerPolicy="no-referrer" className={`tryon-mirror-shirt-img ${effectiveBlend === "solid" ? "tryon-blend-solid" : "tryon-blend-realistic"}`} style={{ width: `${baseWidth}px`, display: effectiveAutoFit && cvState === "tracking" ? "none" : "block" }} draggable={false} />
         )}
       </div>
 
@@ -233,7 +239,7 @@ export const CameraOverlay: React.FC<CameraOverlayProps> = ({ deal, deals, onSel
         <div className="tryon-fs-strip-wrap">
           <DealStrip deals={deals} activeDealId={deal.id} onSelect={onSelectDeal} />
         </div>
-        <p className="tryon-fs-footnote">Style preview only, not a fit check</p>
+        <p className="tryon-fs-footnote">Auto-Fit works best with a fixed camera, steady light and one person in frame. Style preview only, not a fit check.</p>
       </div>
     </div>
   );

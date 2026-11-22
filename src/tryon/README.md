@@ -1,4 +1,4 @@
-# DealFinder "Style Preview" (Try On v4 - Auto-Fit Live Mirror)
+# DealFinder "Style Preview" (Try On v4 - Classical CV Auto-Fit)
 
 An accessible "Style Preview" and "Size Match" component for apparel comparison apps.
 
@@ -6,7 +6,7 @@ An accessible "Style Preview" and "Size Match" component for apparel comparison 
 - **Style Preview Modes**:
   - **Body Twin (Zero-AI)**: Parametric SVG body silhouette scaled to user's height, build, and skin tone.
   - **Manual Mirror (Zero-AI Fallback)**: Mirrored local webcam feed with manual alignment, scale, rotation, and snapshot capture.
-  - **Auto-Fit (beta)**: On-device body tracking using self-hosted MediaPipe PoseLandmarker (Lite). Warped 2D textured mesh, Verlet cloth dynamics, and procedural depth shading. 100% on-device; zero cloud calls.
+  - **Auto-Fit (no AI)**: Real-time classical computer vision using background subtraction, auto-exposure normalization, morphological filtering, and silhouette extraction. Warps a 10x12 garment mesh with Verlet cloth simulation and procedural shading. Zero ML dependencies.
 - **Size Match (v3)**:
   - Deterministic size chart matching (`chestCm >= user chest + 4` ease).
   - Flags between-sizes and narrow shoulders (> 2 cm narrower than user).
@@ -32,22 +32,22 @@ src/tryon/
   ProfileSetup.tsx     # Height slider, segmented build, skin tones, measurements
   PaperDoll.tsx        # Dynamic SVG silhouette + shirt overlay + drag/pinch
   CameraOverlay.tsx    # Live mirror view orchestrating manual & Auto-Fit modes
-  AutoFitControls.tsx  # Fabric & Realism selectors for Auto-Fit mode
+  AutoFitControls.tsx  # Fabric, Realism, Silhouette overlay & Recalibrate controls
   DealStrip.tsx        # Scroll-snap horizontal strip of alternative deals
   TryOnModal.tsx       # Focus-trapped dialog orchestrating all components
   tryon.css            # Responsive styles, blend modes, animations
   hooks/
-    useAutoFit.ts      # Auto-fit lifecycle, detection loop, and adaptive quality
-    loadLandmarker.ts  # Dynamic lazy loader for self-hosted MediaPipe wasm/model
+    useAutoFitCv.ts    # Classical CV detection loop, calibration flow & rendering
     useShirtGestures.ts# Touch/pointer pinch & drag gesture handler
-  pose/
-    types.ts           # Pose anchors, landmarks, and viewport types
-    coordinateMapping.ts# Exact object-fit: cover and mirror coordinate mapping
+  cv/
+    types.ts           # BackgroundModel, RowProfile, BodyMeasurements types
+    backgroundModel.ts # Mean/variance model accumulation, validation & bump detection
+    foregroundMask.ts  # Exposure gain, difference thresholding, morphology, flood-fill
+    silhouetteMeasurements.ts # Head, neck, shoulder extraction & centerline fit
     oneEuroFilter.ts   # Adaptive low-latency jitter filter (1€ Filter)
-    poseToAnchors.ts   # Extracts body anchors from 33 pose landmarks
     trackingState.ts   # Smooth fading state manager for lost/regained tracking
-    meshGenerator.ts   # Warped garment mesh calculation pinned to anchors
-    pose.test.ts       # Vitest tests for pose, filter, mapping, and mesh
+    meshBuilder.ts     # 10x12 mesh pinned to silhouette with armpit clamping
+    cv.test.ts         # Vitest unit tests with synthetic silhouette masks
   render/
     clothSimulation.ts # Verlet spring physics for fabric sway & lag
     shading.ts         # Procedural depth gradient, folds & contact shadow
@@ -62,7 +62,7 @@ src/tryon/
 # Install dependencies
 npm install
 
-# Run all unit tests (27 tests)
+# Run all unit tests (26 tests)
 npm test
 
 # Run Vite dev server

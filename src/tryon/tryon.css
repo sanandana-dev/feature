@@ -1432,3 +1432,94 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Classical CV Calibration UI */
+.tryon-recalib-btn {
+  color: #93c5fd;
+  border: 1px solid rgba(147, 197, 253, 0.3);
+}
+.tryon-recalib-btn:hover {
+  background: rgba(59, 130, 246, 0.25);
+  color: #fff;
+}
+
+.tryon-calib-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  padding: 1.5rem;
+  pointer-events: auto;
+}
+
+.tryon-calib-card {
+  background: rgba(15, 23, 42, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(12px);
+  padding: 1.5rem;
+  border-radius: 16px;
+  text-align: center;
+  max-width: 380px;
+  color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.tryon-calib-card h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.tryon-countdown-number {
+  font-size: 3.5rem;
+  font-weight: 800;
+  color: #60a5fa;
+  line-height: 1;
+  text-shadow: 0 0 16px rgba(96, 165, 250, 0.5);
+  margin: 0.5rem 0;
+}
+
+.tryon-calib-tips {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.tryon-calib-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #94a3b8;
+}
+
+.tryon-privacy-note {
+  margin: 0.25rem 0 0 0;
+  font-size: 0.7rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.tryon-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: tryon-spin 0.8s linear infinite;
+  margin: 0.5rem 0;
+}
+
+@keyframes tryon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

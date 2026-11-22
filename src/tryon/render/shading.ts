@@ -1,4 +1,4 @@
-import { RealismLevel } from "../pose/types";
+import { RealismLevel } from "../cv/types";
 
 export class ShadingGenerator {
   private offscreenCanvas: HTMLCanvasElement | null = null;

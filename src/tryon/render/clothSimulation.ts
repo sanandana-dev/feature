@@ -1,5 +1,5 @@
-import { MeshGrid, MeshVertex } from "../pose/meshGenerator";
-import { FabricType } from "../pose/types";
+import { MeshGrid, MeshVertex } from "../cv/meshBuilder";
+import { FabricType } from "../cv/types";
 
 interface FabricParams {
   stiffness: number;

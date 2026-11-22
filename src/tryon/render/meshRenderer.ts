@@ -1,5 +1,5 @@
-import { MeshGrid, MeshVertex } from "../pose/meshGenerator";
-import { RealismLevel } from "../pose/types";
+import { MeshGrid, MeshVertex } from "../cv/meshBuilder";
+import { RealismLevel } from "../cv/types";
 import { ShadingGenerator } from "./shading";
 
 const shadingGen = new ShadingGenerator();
