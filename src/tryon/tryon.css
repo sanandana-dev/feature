@@ -1523,3 +1523,66 @@
     transform: rotate(360deg);
   }
 }
+
+.tryon-help-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tryon-help-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 0.85rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+  z-index: 50;
+  color: #e2e8f0;
+  text-align: left;
+}
+
+.tryon-help-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 0.35rem;
+}
+
+.tryon-help-header h4 {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.tryon-help-close {
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0.2rem;
+}
+
+.tryon-help-close:hover {
+  color: #ffffff;
+}
+
+.tryon-help-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #cbd5e1;
+}
+
+.tryon-help-list li {
+  margin-bottom: 0.35rem;
+}

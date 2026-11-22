@@ -159,6 +159,7 @@ export const TryOnModal: React.FC<TryOnModalProps> = ({
               deals={deals}
               onSelectDeal={setSelectedDealId}
               onClose={onClose}
+              profile={profile}
             />
           </div>
         )}

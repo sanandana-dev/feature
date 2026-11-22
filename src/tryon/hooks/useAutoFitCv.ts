@@ -1,14 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { AutoFitCvState, BodyMeasurements, CalibrationStep, FabricType, RealismLevel } from "../cv/types";
 import { createBackgroundModel, accumulateFrame, finalizeBackgroundModel } from "../cv/backgroundModel";
-import { detectSilhouette } from "../cv/detectSilhouette";
+import { detectSilhouette, DetectBuffers } from "../cv/detectSilhouette";
 import { TrackingStateManager } from "../cv/trackingState";
 import { generateSilhouetteMesh } from "../cv/meshBuilder";
 import { ClothSimulator } from "../render/clothSimulation";
 import { renderGarmentMesh } from "../render/meshRenderer";
 import { renderSilhouetteOverlay } from "../cv/renderSilhouetteOverlay";
-import { FitType } from "../types";
+import { FitType, Profile } from "../types";
 import { useCvFilters } from "./useCvFilters";
+import { CV_CONFIG } from "../cv/config";
 
 export interface UseAutoFitCvProps {
   enabled: boolean;
@@ -22,6 +23,7 @@ export interface UseAutoFitCvProps {
   manualOffset?: { x: number; y: number };
   manualScale?: number;
   manualRotateDeg?: number;
+  profile?: Profile;
 }
 
 export function useAutoFitCv({
@@ -36,10 +38,11 @@ export function useAutoFitCv({
   manualOffset = { x: 0, y: 0 },
   manualScale = 1.0,
   manualRotateDeg = 0,
+  profile,
 }: UseAutoFitCvProps) {
   const [state, setState] = useState<AutoFitCvState>("off");
   const [calibStep, setCalibStep] = useState<CalibrationStep>("idle");
-  const [calibCountdown, setCalibCountdown] = useState<number>(3);
+  const [calibCountdown, setCalibCountdown] = useState<number>(CV_CONFIG.calibration.countdownSeconds);
   const [fps, setFps] = useState<number>(0);
   const [latencyMs, setLatencyMs] = useState<number>(0);
   const [qualityLevel, setQualityLevel] = useState<"high" | "low">("high");
@@ -57,22 +60,28 @@ export function useAutoFitCv({
   const prevMeasurements = useRef<BodyMeasurements | null>(null);
   const currentMaskRef = useRef<Uint8Array | null>(null);
 
-  // Setup offscreen CV canvas (160px wide, maintaining aspect ratio)
+  // Pre-allocated typed arrays for zero-allocation CV loop
+  const buffersRef = useRef<DetectBuffers | null>(null);
+  const prevFrameDataRef = useRef<Uint8ClampedArray | null>(null);
+  const prevMaskRef = useRef<Uint8Array | null>(null);
+
+  // Setup offscreen CV canvas
   useEffect(() => {
     if (typeof document !== "undefined" && !cvCanvasRef.current) {
       const cvCanvas = document.createElement("canvas");
-      cvCanvas.width = 160;
-      cvCanvas.height = 120;
+      cvCanvas.width = CV_CONFIG.grid.width;
+      cvCanvas.height = CV_CONFIG.grid.defaultHeight;
       cvCanvasRef.current = cvCanvas;
       cvCtxRef.current = cvCanvas.getContext("2d", { willReadFrequently: true });
     }
   }, []);
 
   const startCalibration = () => {
-    setCalibStep("countdown"); setCalibCountdown(3); setState("calibrating");
+    setCalibStep("countdown");
+    setCalibCountdown(CV_CONFIG.calibration.countdownSeconds);
+    setState("calibrating");
   };
 
-  // Turn on/off logic
   useEffect(() => {
     if (!enabled) {
       setState("off");
@@ -83,7 +92,6 @@ export function useAutoFitCv({
     startCalibration();
   }, [enabled]);
 
-  // Calibration flow countdown and capture
   useEffect(() => {
     if (calibStep === "countdown") {
       const timer = window.setInterval(() => {
@@ -91,7 +99,7 @@ export function useAutoFitCv({
           if (prev <= 1) {
             clearInterval(timer);
             setCalibStep("capturing");
-            bgModelRef.current = createBackgroundModel(160, 120);
+            bgModelRef.current = createBackgroundModel(CV_CONFIG.grid.width, CV_CONFIG.grid.defaultHeight);
             return 0;
           }
           return prev - 1;
@@ -125,24 +133,33 @@ export function useAutoFitCv({
       const cvCanvas = cvCanvasRef.current;
 
       if (video && video.readyState >= 2 && canvas && cvCtx && cvCanvas) {
-        // Adjust CV canvas aspect ratio to match video
-        const targetH = Math.round((160 * video.videoHeight) / (video.videoWidth || 1));
-        if (cvCanvas.height !== targetH) cvCanvas.height = targetH;
+        const targetH = Math.round((CV_CONFIG.grid.width * video.videoHeight) / (video.videoWidth || 1));
+        if (cvCanvas.height !== targetH) {
+          cvCanvas.height = targetH;
+          const numPixels = CV_CONFIG.grid.width * targetH;
+          buffersRef.current = {
+            rawMask: new Uint8Array(numPixels),
+            tempBuf: new Uint8Array(numPixels),
+            cleanedMask: new Uint8Array(numPixels),
+            finalMask: new Uint8Array(numPixels),
+          };
+          prevFrameDataRef.current = new Uint8ClampedArray(numPixels * 4);
+          prevMaskRef.current = new Uint8Array(numPixels);
+        }
 
         if (canvas.width !== video.clientWidth || canvas.height !== video.clientHeight) {
           canvas.width = video.clientWidth;
           canvas.height = video.clientHeight;
         }
 
-        // Downscale video frame onto CV canvas
-        cvCtx.drawImage(video, 0, 0, 160, cvCanvas.height);
-        const frameData = cvCtx.getImageData(0, 0, 160, cvCanvas.height).data;
+        cvCtx.drawImage(video, 0, 0, CV_CONFIG.grid.width, cvCanvas.height);
+        const frameData = cvCtx.getImageData(0, 0, CV_CONFIG.grid.width, cvCanvas.height).data;
 
-        // Calibration frame capturing
+        // Calibration capture
         if (calibStep === "capturing" && bgModelRef.current) {
           accumulateFrame(bgModelRef.current, frameData);
           captureFramesCount++;
-          if (captureFramesCount >= 45) { // ~1.5s at 30fps
+          if (captureFramesCount >= CV_CONFIG.calibration.captureFrames) {
             const valid = finalizeBackgroundModel(bgModelRef.current);
             if (valid) {
               setCalibStep("ready");
@@ -155,7 +172,7 @@ export function useAutoFitCv({
           }
         }
 
-        // Live CV tracking when background model is ready
+        // Live CV tracking
         if (calibStep === "ready" && bgModelRef.current && (state === "tracking" || state === "lost" || state === "bumped")) {
           const model = bgModelRef.current;
           if (now - lastDetectTime.current >= 33) {
@@ -165,21 +182,29 @@ export function useAutoFitCv({
             const { mask, measurements, bumped } = detectSilhouette(
               frameData,
               model,
-              160,
+              CV_CONFIG.grid.width,
               cvCanvas.height,
-              prevMeasurements.current
+              prevMeasurements.current,
+              profile,
+              prevFrameDataRef.current,
+              prevMaskRef.current,
+              buffersRef.current ?? undefined
             );
+
+            // Copy to previous frame / mask for motion assist & temporal stability
+            if (prevFrameDataRef.current) prevFrameDataRef.current.set(frameData);
+            if (prevMaskRef.current) prevMaskRef.current.set(mask);
             currentMaskRef.current = mask;
+
             if (bumped) setState("bumped");
             else if (state === "bumped") setState("tracking");
+
             if (measurements && measurements.confidence > 0.4) {
               prevMeasurements.current = measurements;
             }
-
             setLatencyMs(Math.round(performance.now() - t0));
           }
 
-          // Tracking state update (handles 400ms timeout / 200ms fade)
           const tracking = trackingMgr.current.update(prevMeasurements.current, now);
           if (tracking.status === "lost" && state !== "lost" && state !== "bumped") {
             setState("lost");
@@ -191,25 +216,24 @@ export function useAutoFitCv({
           if (ctx) {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Debug silhouette overlay
             if (showSilhouette && currentMaskRef.current) {
-              renderSilhouetteOverlay(ctx, currentMaskRef.current, canvas.width, canvas.height, 160, cvCanvas.height);
+              renderSilhouetteOverlay(ctx, currentMaskRef.current, canvas.width, canvas.height, CV_CONFIG.grid.width, cvCanvas.height);
             }
 
-            // Render warped garment mesh
             if (tracking.measurements && tracking.opacity > 0.01 && shirt) {
               const m = tracking.measurements;
-              const sx = canvas.width / 160;
+              const sx = canvas.width / CV_CONFIG.grid.width;
               const sy = canvas.height / cvCanvas.height;
 
               const smoothM = applyFilters(m, now);
+              const cols = qualityLevel === "low" ? CV_CONFIG.mesh.lowCols : CV_CONFIG.mesh.highCols;
+              const rows = qualityLevel === "low" ? CV_CONFIG.mesh.lowRows : CV_CONFIG.mesh.highRows;
 
-              const cols = qualityLevel === "low" ? 8 : 10;
-              const rows = qualityLevel === "low" ? 10 : 12;
               const baseMesh = generateSilhouetteMesh(smoothM, {
                 cols, rows, fit, scaleX: sx, scaleY: sy, manualOffset, manualScale, manualRotateDeg,
               });
-              const isReduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+              const isReduced = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
               const simMesh = clothSim.current.simulate(baseMesh, fabric, isReduced);
               renderGarmentMesh(ctx, shirt, simMesh, tracking.opacity, qualityLevel === "low" ? "low" : realism);
             }
@@ -221,8 +245,8 @@ export function useAutoFitCv({
         frameTimes.current.push(dt);
         if (frameTimes.current.length > 30) frameTimes.current.shift();
         const avgDt = frameTimes.current.reduce((a, b) => a + b, 0) / frameTimes.current.length;
-        if (avgDt > 40 && qualityLevel !== "low") setQualityLevel("low");
-        else if (avgDt < 25 && qualityLevel === "low") setQualityLevel("high");
+        if (avgDt > CV_CONFIG.mesh.degradeFrameTimeMs && qualityLevel !== "low") setQualityLevel("low");
+        else if (avgDt < CV_CONFIG.mesh.upgradeFrameTimeMs && qualityLevel === "low") setQualityLevel("high");
 
         if (now - lastFps >= 1000) {
           setFps(Math.round(((frameCount + 1) * 1000) / (now - lastFps)));
@@ -243,7 +267,7 @@ export function useAutoFitCv({
       clothSim.current.reset();
       resetFilters();
     };
-  }, [enabled, state, calibStep, fit, fabric, realism, showSilhouette, qualityLevel, manualOffset, manualScale, manualRotateDeg, videoRef, canvasRef, shirtImgRef]);
+  }, [enabled, state, calibStep, fit, fabric, realism, showSilhouette, qualityLevel, manualOffset, manualScale, manualRotateDeg, profile, videoRef, canvasRef, shirtImgRef]);
 
   return { state, calibStep, calibCountdown, fps, latencyMs, qualityLevel, startCalibration };
 }

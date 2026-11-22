@@ -68,26 +68,53 @@ Tracking operates purely on classical computer vision on downscaled video frames
 - **Lighting Conditions**: Requires steady indoor lighting. Rapid light level changes or strong backlighting may disrupt background subtraction.
 - **Single Person**: Designed for a single shopper in frame.
 - **Front-Facing Style Preview Only**: Displays the front product image over the user's front silhouette; there is no 3D back view.
+- **Hands & Arms**: Hands and arms are not segmented separately from the shirt; moving arms in front of the chest is clamped to prevent ballooning.
+- **Color Contrast**: Very similar shirt and background color can weaken silhouette extraction.
+- **Hand-Held Devices**: A hand-held phone breaks background subtraction; use a stand or prop.
 - **Style Preview, Not a Fit Check**: Visualizes drape, proportions, color, and necklines. True sizing should always be confirmed against store size charts.
 
 ---
 
-## 6. Manual Test Checklist
+## 6. Tuning & Configuration (`src/tryon/cv/config.ts`)
+
+All algorithm tunables and thresholds are centralized in [src/tryon/cv/config.ts](file:///c:/Users/hp/Downloads/feature/src/tryon/cv/config.ts):
+
+| Parameter | Location in `CV_CONFIG` | Default | Description |
+|---|---|---|---|
+| `diffK` | `background.diffK` | `2.8` | Standard deviation multiplier ($k \cdot \sigma$) for foreground detection |
+| `minThreshold` | `background.minThreshold` | `18` | Minimum RGB difference floor to prevent noise in low-variance areas |
+| `alpha` | `background.alpha` | `0.01` | Slow background learning rate applied strictly to background pixels |
+| `bumpForegroundRatio` | `background.bumpForegroundRatio` | `0.70` | Foreground area threshold triggering camera bump detection |
+| `bumpBorderDiffThreshold`| `background.bumpBorderDiffThreshold` | `32` | Perimeter border shift threshold indicating camera movement |
+| `decayAlpha` | `temporalMask.decayAlpha` | `0.80` | Temporal hysteresis smoothing factor across successive frames |
+| `posMinCutoff` / `posBeta`| `smoothing` | `1.0` / `0.02` | 1€Filter cutoff frequency and speed coefficient for translation |
+| `armpitWidthClampMin/Max`| `biometrics` | `0.75` / `0.95` | Upper/lower torso width clamp relative to shoulder width |
+| `sleeveSpanRatio` | `biometrics` | `0.55` | Sleeve outward extension factor relative to shoulder width |
+| `highCols` / `highRows` | `mesh` | `10` / `12` | Garment deformation vertex grid resolution |
+| `degradeFrameTimeMs` | `mesh.degradeFrameTimeMs` | `40` | Frame time threshold triggering adaptive low-quality mode |
+
+---
+
+## 7. Manual Test Checklist
 
 - [ ] **Calibration & Step Back**: Step out of frame during 3-2-1 countdown, verify background capture, step back in, and confirm silhouette acquisition.
 - [ ] **Leaning & Rotation**: Lean side-to-side; confirm the shirt rotates naturally with the torso angle.
 - [ ] **Lateral Movement**: Step left and right; confirm responsive horizontal tracking without jitter.
 - [ ] **Profile Turn**: Turn slightly sideways; verify the garment narrows with the profile silhouette.
 - [ ] **Arm Movement**: Raise and cross arms; confirm armpit clamping prevents garment distortion.
+- [ ] **Second Person Behind**: Second person walking behind is separated once they move outside the main connected component.
+- [ ] **Light On/Off**: Verify exposure gain normalization compensates for moderate lighting shifts; recalibrate if lights drastically change.
 - [ ] **Camera Movement**: Bump camera deliberately; confirm "Camera moved, please recalibrate" prompt.
 - [ ] **Walk Away & Return**: Walk out of frame; confirm smooth 200ms fade-out after 400ms timeout, and smooth fade-in upon return.
+- [ ] **Deal Swap**: Tapping alternative deals in the bottom strip swaps the shirt texture instantly without resetting calibration.
 - [ ] **Manual Fallback**: Toggle Auto-Fit off; verify instant switch to manual drag/pinch alignment.
 - [ ] **Body Twin**: Switch to Body Twin tab; verify 2D parametric silhouette and Size Match recommendations remain functional.
-- [ ] **Full-Screen Mode**: Toggle full-screen on desktop/mobile; verify layout and canvas resize cleanly.
+- [ ] **Full-Screen Mode & Esc**: Toggle full-screen on desktop/mobile; verify layout and canvas resize cleanly, and Esc exits.
+- [ ] **Snapshot**: Click camera icon; verify composited video + garment PNG download.
 
 ---
 
-## 7. Getting Started
+## 8. Getting Started
 
 ```bash
 # Install dependencies

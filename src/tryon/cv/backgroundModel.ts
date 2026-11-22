@@ -1,4 +1,5 @@
 import { BackgroundModel } from "./types";
+import { CV_CONFIG } from "./config";
 
 export function createBackgroundModel(width: number, height: number): BackgroundModel {
   const pixelCount = width * height;
@@ -61,12 +62,12 @@ export function finalizeBackgroundModel(model: BackgroundModel): boolean {
 
   const avgVar = totalVar / (numPixels * 3);
   // Unsteady background check (someone was moving during capture)
-  if (avgVar > 450) {
+  if (avgVar > CV_CONFIG.calibration.maxVarianceAllowed) {
     return false;
   }
 
   // Flat color check (e.g. camera covered or solid black frame)
-  if (maxMean - minMean < 12) {
+  if (maxMean - minMean < CV_CONFIG.calibration.minColorRangeAllowed) {
     return false;
   }
 
@@ -81,11 +82,11 @@ export function updateBackgroundModel(
   model: BackgroundModel,
   frameData: Uint8ClampedArray,
   mask: Uint8Array,
-  alpha = 0.01
+  alpha = CV_CONFIG.background.alpha
 ): void {
   const numPixels = model.width * model.height;
   for (let i = 0; i < numPixels; i++) {
-    if (mask[i] === 0) { // Background pixel
+    if (mask[i] === 0) {
       const srcIdx = i * 4;
       const dstIdx = i * 3;
       for (let c = 0; c < 3; c++) {
@@ -112,12 +113,12 @@ export function detectCameraBump(
     if (mask[i] > 0) fgCount++;
   }
 
-  // Foreground covers > 70% of frame
-  if (fgCount / numPixels > 0.70) {
+  // Foreground explosion
+  if (fgCount / numPixels > CV_CONFIG.background.bumpForegroundRatio) {
     return true;
   }
 
-  // Check border pixels (first & last 2 rows and columns)
+  // Check border pixels
   let borderDiff = 0;
   let borderCount = 0;
   const w = model.width;
@@ -139,5 +140,5 @@ export function detectCameraBump(
   }
 
   const avgBorderDiff = borderDiff / Math.max(1, borderCount);
-  return avgBorderDiff > 32;
+  return avgBorderDiff > CV_CONFIG.background.bumpBorderDiffThreshold;
 }
